@@ -1,6 +1,6 @@
 # Text Tools — 文本工具
 
-七个 auto-run 文本变换 action，适用于 [Clipbus](https://clipbus.app)。
+九个 auto-run 文本变换 action，适用于 [Clipbus](https://clipbus.app)。
 
 ## Action 列表
 
@@ -13,8 +13,10 @@
 | `text-reverse-lines` | Reverse Lines | 反转所有行的顺序。 |
 | `text-reverse-characters` | Reverse Characters | 反转所有用户可见字符，不拆开 emoji 或组合音标。 |
 | `text-sort-characters` | Sort Characters | 按不区分大小写的自然顺序排列所有用户可见字符。 |
+| `text-pretty-json` | Pretty JSON | 解析有效 JSON，并以两个空格缩进格式化。 |
+| `text-minify-json` | Minify JSON | 解析有效 JSON，并移除无关空白。 |
 
-七个 action 均为 `auto-run`（无 UI），仅作用于 `text` 类型的剪贴板内容，直接返回变换后的文本。纯空白内容输入时返回"无内容"结果。
+九个 action 均为 `auto-run`（无 UI），仅作用于 `text` 类型的剪贴板内容，直接返回变换后的文本。纯空白内容输入时返回"无内容"结果，无效 JSON 返回 `Invalid JSON`。
 
 ## 本地开发
 

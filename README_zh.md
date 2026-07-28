@@ -47,7 +47,7 @@ Clipbus 免费版每类能力（detector / renderer / action）各有 3 个插�
 | [clipbus-converter-plugin](./clipbus-converter-plugin/README.md) | `clipbus-converter-plugin` | 数值、时间、单位与权限转换，并提供 10 个独立、可由宿主级联的命名风格 auto-run action | — |
 | [clipbus-extractor-plugin](./clipbus-extractor-plugin/README.md) | `clipbus-extractor-plugin` | 提取与解析 URL、裸查询字符串、实体、IP/CIDR、坐标、MAC 和 UUID；URL Details 支持移除追踪参数并保留重复 query pair，另含正则测试 draft | — |
 | [clipbus-preview-plugin](./clipbus-preview-plugin/README.md) | `clipbus-preview-plugin` | 颜色（含 WCAG 对比度）、CSS 渐变与安全 Markdown 可视化预览 | [GIF](./docs/gifs/preview.gif) |
-| [clipbus-text-plugin](./clipbus-text-plugin/README.md) | `clipbus-text-plugin` | 7 个独立 auto-run 文本 action：排序、去重、整理空白、移除 ANSI，以及反转或排序字符/行 | — |
+| [clipbus-text-plugin](./clipbus-text-plugin/README.md) | `clipbus-text-plugin` | 9 个独立 auto-run 文本 action：JSON 美化/压缩、排序、去重、整理空白、移除 ANSI，以及反转或排序字符/行 | — |
 | [clipbus-image-plugin](./clipbus-image-plugin/README.md) | `clipbus-image-plugin` | 专用 draft action，交互式裁剪、缩放、格式转换与压缩图片 | — |
 | [clipbus-generator-plugin](./clipbus-generator-plugin/README.md) | `clipbus-generator-plugin` | 生成 UUID v4、可排序 ULID 或强随机密码（可配置长度 / 大小写 / 数字 / 符号 / 数量，Web Crypto），以及 Lorem Ipsum 占位文本（段落 / 句子 / 单词）；draft 表单实时预览并复制 | — |
 | [clipbus-cron-plugin](./clipbus-cron-plugin/README.md) | `clipbus-cron-plugin` | 识别 5 段 cron 表达式，逐字段中文释义表、一句执行概述,以及接下来 5 次触发时刻（实时本地时间）（带护栏避免误判普通数字行）| — |

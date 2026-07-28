@@ -9,7 +9,7 @@ const manifest = JSON.parse(fs.readFileSync(path.resolve(root, 'manifest.json'),
 
 // ── manifest ─────────────────────────────────────────────────────────────────
 
-test('manifest declares the 7 action ids', () => {
+test('manifest declares the 9 action ids', () => {
   const ids = manifest.actions.map((a) => a.id);
   assert.ok(ids.includes('text-sort'), 'missing text-sort');
   assert.ok(ids.includes('text-dedup'), 'missing text-dedup');
@@ -18,7 +18,9 @@ test('manifest declares the 7 action ids', () => {
   assert.ok(ids.includes('text-reverse-lines'), 'missing text-reverse-lines');
   assert.ok(ids.includes('text-reverse-characters'), 'missing text-reverse-characters');
   assert.ok(ids.includes('text-sort-characters'), 'missing text-sort-characters');
-  assert.equal(ids.length, 7);
+  assert.ok(ids.includes('text-pretty-json'), 'missing text-pretty-json');
+  assert.ok(ids.includes('text-minify-json'), 'missing text-minify-json');
+  assert.equal(ids.length, 9);
 });
 
 test('all actions are lifecycle auto-run', () => {
@@ -54,6 +56,8 @@ for (const [moduleName, factoryName] of [
   ['reverse-lines', 'createReverseLinesAction'],
   ['reverse-characters', 'createReverseCharactersAction'],
   ['sort-characters', 'createSortCharactersAction'],
+  ['json', 'createPrettyJsonAction'],
+  ['json', 'createMinifyJsonAction'],
 ]) {
   test(`${factoryName} returns a handler with runAutoAction and resolveSession`, () => {
     const actionModule = require(path.resolve(root, `src/features/line-tools/${moduleName}.ts`));
@@ -150,6 +154,29 @@ test('sort characters action sorts all graphemes', async () => {
   assert.equal(result.result.resultKind, 'text');
   assert.equal(result.result.text, 'abc');
 });
+
+test('pretty JSON action formats valid JSON with two-space indentation', async () => {
+  const { createPrettyJsonAction } = require(path.resolve(root, 'src/features/line-tools/json.ts'));
+  const result = await createPrettyJsonAction().runAutoAction(makeInput('{"a":1,"nested":{"ok":true}}'));
+  assert.equal(result.result.resultKind, 'text');
+  assert.equal(result.result.text, '{\n  "a": 1,\n  "nested": {\n    "ok": true\n  }\n}');
+});
+
+test('minify JSON action removes insignificant whitespace', async () => {
+  const { createMinifyJsonAction } = require(path.resolve(root, 'src/features/line-tools/json.ts'));
+  const result = await createMinifyJsonAction().runAutoAction(makeInput('{ "a": 1, "items": [true, null] }'));
+  assert.equal(result.result.resultKind, 'text');
+  assert.equal(result.result.text, '{"a":1,"items":[true,null]}');
+});
+
+for (const factoryName of ['createPrettyJsonAction', 'createMinifyJsonAction']) {
+  test(`${factoryName} returns none for invalid JSON`, async () => {
+    const actionModule = require(path.resolve(root, 'src/features/line-tools/json.ts'));
+    const result = await actionModule[factoryName]().runAutoAction(makeInput('{"broken":'));
+    assert.equal(result.result.resultKind, 'none');
+    assert.equal(result.userMessage, 'Invalid JSON');
+  });
+}
 
 test('sort action on empty text returns resultKind none', async () => {
   const { createSortAction } = require(path.resolve(root, 'src/features/line-tools/sort.ts'));

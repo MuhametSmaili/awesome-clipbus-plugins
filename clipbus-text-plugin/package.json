@@ -1,7 +1,7 @@
 {
   "name": "@clipbus/text-plugin",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Text Tools plugin for Clipbus.",
   "engines": {
     "node": ">=18.0.0"

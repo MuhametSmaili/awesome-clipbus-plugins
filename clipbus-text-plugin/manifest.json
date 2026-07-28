@@ -3,7 +3,7 @@
   "plugin": {
     "id": "plugin.text",
     "title": "Text Tools",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "install": {
     "runtime": "node",
@@ -65,6 +65,20 @@
       "supportedInputKinds": ["text"],
       "lifecycle": "auto-run",
       "keywords": ["sort", "characters", "order"]
+    },
+    {
+      "id": "text-pretty-json",
+      "title": "Pretty JSON",
+      "supportedInputKinds": ["text"],
+      "lifecycle": "auto-run",
+      "keywords": ["json", "pretty", "format", "indent"]
+    },
+    {
+      "id": "text-minify-json",
+      "title": "Minify JSON",
+      "supportedInputKinds": ["text"],
+      "lifecycle": "auto-run",
+      "keywords": ["json", "minify", "compact"]
     }
   ]
 }

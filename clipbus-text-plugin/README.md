@@ -1,6 +1,6 @@
 # Text Tools
 
-Seven auto-run text transform actions for [Clipbus](https://clipbus.app).
+Nine auto-run text transform actions for [Clipbus](https://clipbus.app).
 
 ## Actions
 
@@ -13,8 +13,10 @@ Seven auto-run text transform actions for [Clipbus](https://clipbus.app).
 | `text-reverse-lines` | Reverse Lines | Reverses the order of all lines. |
 | `text-reverse-characters` | Reverse Characters | Reverses all user-perceived characters without breaking emoji or combining marks. |
 | `text-sort-characters` | Sort Characters | Sorts all user-perceived characters with case-insensitive natural ordering. |
+| `text-pretty-json` | Pretty JSON | Parses valid JSON and formats it with two-space indentation. |
+| `text-minify-json` | Minify JSON | Parses valid JSON and removes insignificant whitespace. |
 
-All seven actions are `auto-run` (no UI), apply only to `text` clipboard items, and return the transformed text directly. Empty or whitespace-only input yields a "no content" result with no output.
+All nine actions are `auto-run` (no UI), apply only to `text` clipboard items, and return the transformed text directly. Empty or whitespace-only input yields a "no content" result with no output; invalid JSON yields an "Invalid JSON" result.
 
 ## Development
 

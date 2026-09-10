@@ -67,6 +67,7 @@ tests/setup.cjs
 - `src/shared/debug.ts` / `display.ts` 只服务 template 的 demo features；生产插件没有引用时不传播。不能仅因它们位于 `src/shared/` 就复制死代码（2026-07-22 修：旧校验器将二者误判为逐字共享，对 9 个插件报 18 个 missing）。
 - `package.json` 不在逐字集——走**字段级合并**。
 - `package-lock.json` 不在逐字集——各插件依赖树天生不同（实测 template 3953 行、各插件各 4422 行且 hash 互异）。`check-consistency.mjs` 的 `DENY_EXACT` 已显式排除它（2026-06-28 修：此前漏排，脚本把 lockfile 当逐字共享、对 9 个插件长期 false-fail；同次上游同步还删除了 template 自带的 lockfile，本仓决定各插件**保留**各自 lockfile 以保可复现安装）。
+  - 更新依赖后必须检查 lockfile diff，不能接受 npm 版本导致的无关平台元数据 churn。真实踩过：npm 9.5.0 重写含 `sharp` 的锁文件时删除 29 个 `libc`（glibc/musl）约束；应从 Git 基线保留未变依赖的元数据，只更新目标依赖的声明、版本、tarball 与 integrity。
 - `scripts/build-ui.mjs` / `scripts/verify-build.mjs` 不在逐字集——是**分叉脚本**。
 - `scripts/export.mjs` 当前**未被 tracked**（package.json 虽有 `export` 脚本引用它，但仓库里没这个文件）。动态导出天然不会把它算进来；若上游某天真的加了它，会自动纳入。
 

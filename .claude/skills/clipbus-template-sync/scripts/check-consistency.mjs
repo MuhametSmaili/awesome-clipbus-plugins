@@ -49,6 +49,8 @@ const DENY_PREFIX = ["src/features/", "src/preview/"];
 // shared harness like tests/setup.cjs is verbatim-shared. So exclude *.test.* but
 // keep everything else under tests/.
 const DENY_SUFFIX = /\.test\.(c|m)?js$/;
+// Verbatim-shared, but a plugin may omit any it doesn't use (see check #1).
+const OPTIONAL_SHARED_PREFIX = "src/shared/";
 // Intentionally divergent from template — handled by check #3.
 const DIVERGENT = ["scripts/build-ui.mjs", "scripts/verify-build.mjs"];
 
@@ -133,6 +135,10 @@ function main() {
       const pluginFile = path.join(repoRoot, plugin, rel);
       const tplFile = path.join(templateAbs, rel);
       if (!existsSync(pluginFile)) {
+        // src/shared/* are optional helpers: plugins may delete ones they don't
+        // import (fdb8547 dropped unused debug.ts/display.ts); a still-needed
+        // helper would fail typecheck. Only a present copy must match.
+        if (rel.startsWith(OPTIONAL_SHARED_PREFIX)) continue;
         issues.push({ check: "shared", plugin, file: rel, kind: "missing" });
       } else if (!sameFile(pluginFile, tplFile)) {
         issues.push({ check: "shared", plugin, file: rel, kind: "differs" });

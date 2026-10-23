@@ -101,13 +101,23 @@ function overviewCounts(apiMd) {
 }
 
 function capabilityNames(sdkRoot) {
-  const f = path.join(sdkRoot, "dist", "generated", "capabilityClients.generated.d.ts");
-  const txt = existsSync(f) ? readFileSync(f, "utf8") : "";
-  // d.ts declares it with a colon + type: `CAPABILITY_METHOD_NAMES: readonly [...]`
-  // (a .js build may use `= [...]`), so accept either `:` or `=`.
-  const m = txt.match(/CAPABILITY_METHOD_NAMES\s*[:=]\s*(?:readonly\s*)?\[([^\]]*)\]/s);
-  if (!m) return new Set();
-  return new Set([...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  // The generated file holding CAPABILITY_METHOD_NAMES gets renamed across SDK
+  // versions (0.10.0: capabilityClients.generated → capabilities.generated), so
+  // scan every d.ts under dist/ instead of hard-coding one filename.
+  const distDir = path.join(sdkRoot, "dist");
+  const dts = existsSync(distDir) ? listFiles(distDir).filter((f) => f.endsWith(".d.ts")) : [];
+  for (const rel of dts) {
+    const txt = readFileSync(path.join(distDir, rel), "utf8");
+    // d.ts declares it with a colon + type: `CAPABILITY_METHOD_NAMES: readonly [...]`
+    // (a .js build may use `= [...]`), so accept either `:` or `=`.
+    const m = txt.match(/CAPABILITY_METHOD_NAMES\s*[:=]\s*(?:readonly\s*)?\[([^\]]*)\]/s);
+    if (m) return new Set([...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  }
+  // Fallback: the `#### \`name\`` headings of API.md §2 (codegen truth source).
+  const apiPath = path.join(sdkRoot, "API.md");
+  const apiMd = existsSync(apiPath) ? readFileSync(apiPath, "utf8") : "";
+  const section = apiMd.split(/^## 2\. Capabilities/m)[1]?.split(/^## 3\./m)[0] ?? "";
+  return new Set([...section.matchAll(/^#### `([^`]+)`/gm)].map((x) => x[1]));
 }
 
 function listFiles(dir) {

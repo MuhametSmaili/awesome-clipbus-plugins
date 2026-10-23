@@ -47,9 +47,10 @@
 
 ## 当前已知的"逐字共享集"
 
-**这是观测快照，不是硬清单**——`check-consistency.mjs` 用"template 的实际 tracked 文件 − 各插件自定义 denylist"**动态导出**它，所以模板新增共享文件时会自动纳入。当前为 12 个：
+**这是观测快照，不是硬清单**——`check-consistency.mjs` 用"template 的实际 tracked 文件 − 各插件自定义 denylist"**动态导出**它，所以模板新增共享文件时会自动纳入（注意：上游 added 的文件在 `git add` 前是 untracked，check-consistency 看不到它，收尾校验前先 stage template）。当前为 13 个：
 
 ```
+.npmrc
 AGENTS.md
 env.d.ts
 eslint.config.mjs
@@ -66,6 +67,7 @@ tests/setup.cjs
 
 注意边界：
 - `tests/setup.cjs` 共享；`tests/**/*.test.cjs` **不**共享（各插件测自己的 feature）。
+- `src/shared/*` 是**可选**逐字共享：插件可删掉不用的 helper（`fdb8547` 已从 9 个插件删掉未引用的 `debug.ts`/`display.ts`），`check-consistency` 对它们的 missing 放行、present 才要求逐字一致。**别为了让校验通过把死代码加回去**；若插件留着某个 helper，template 改了它就要照样逐字同步（0.10.0 同步时发现 vibe 的 `debug.ts` 停在上一轮之前的版本——它当时还没入库，被上次同步漏掉）。
 - `package.json` 不在逐字集——走**字段级合并**。
 - `package-lock.json` 不在逐字集——各插件依赖树天生不同（实测 template 3953 行、各插件各 4422 行且 hash 互异）。`check-consistency.mjs` 的 `DENY_EXACT` 已显式排除它（2026-06-28 修：此前漏排，脚本把 lockfile 当逐字共享、对 9 个插件长期 false-fail；同次上游同步还删除了 template 自带的 lockfile，本仓决定各插件**保留**各自 lockfile 以保可复现安装）。
 - `scripts/build-ui.mjs` / `scripts/verify-build.mjs` 不在逐字集——是**分叉脚本**。

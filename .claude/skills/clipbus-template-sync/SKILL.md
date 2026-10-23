@@ -79,6 +79,7 @@ description: >-
 - 每个 Agent 的任务：对指定插件套用**已验证的 recipe**（明确列出要改的文件/字段）→ 依赖变了 `npm install` → `npm run verify` 修到绿 → 回报结果。
 - **orchestrator（你）独占共享物**：根索引（`README.md`/`README_zh.md`，本同步一般不动）、generator 脚手架资产等不要让子 Agent 各自碰，避免并发写冲突。
 - 子 Agent 全部回来后，**自己复跑抽样 verify** 复核它们的结论（别只信回报）。
+- **例外：试点证明 recipe 是纯机械操作**（零代码改动，只改 SDK 版本 / 拷逐字文件）时，用一个后台 shell 循环并行跑「改字段 → 拷文件 → `npm install` → `npm run verify`」、每插件独立日志 + exit 汇总即可，比派 N 个 Agent 省得多；只给 exit≠0 的插件再派全新 Agent 修（0.10.0 同步实践过）。
 
 ### 5 · 收尾一致性校验 + 重建 dist
 
@@ -93,7 +94,7 @@ description: >-
 
 - **绝不直接把 template 的 `build-ui.mjs`/`verify-build.mjs` 拷给插件**：template 是 demo 专用版，插件用的是 generator 脚手架的通用 manifest 驱动版。直接拷 = 9 个插件全部构建失败。这俩有真实行为变化时，先 port 进 `clipbus-plugin-generator/assets/scaffold/scripts/` 再分发，并同步更新 generator 资产。
 - **package.json 字段级合并，禁止整文件覆盖**：只同步 SDK 版本 / scripts 段 / 共享 devDeps；保留各插件的 `name`/`description`/自有依赖。
-- **SDK 版本 bump ≠ 只改版本号，且 verify 绿 ≠ 没影响**：升级的真实影响**藏在依赖包内部**。**必跑 `scripts/sdk-api-diff.mjs` diff 新旧 SDK 的 API/docs**。删除/改签名是**破坏性**的（verify 会红，报错先读 `API.md`/`docs/README.md` 再改）；**新增的可选 API（如 0.8.4 的 `locale`）verify 绿也照样是真实影响，必须在方案里列出并问是否采用**——只靠文件 diff + 试点 verify 会漏掉它（真实踩过）。**`sdk-api-diff` 的 `docs/ added: <x>.md`（哪怕 capability / host-event 计数没变）= 新增了一篇文档，往往意味着新子路径 / 新编写范式——必读那篇 doc**：0.8.5 的 capability 数没变，却新增 `docs/preview.md` + `@clipbus/plugin-sdk/preview`（`createPreviewWorkbench`），取代各插件手写的 `PreviewShellApp.vue`（真实踩过，要逐插件迁移 preview——见下「架构迁移要传播」条）。
+- **SDK 版本 bump ≠ 只改版本号，且 verify 绿 ≠ 没影响**：升级的真实影响**藏在依赖包内部**。**必跑 `scripts/sdk-api-diff.mjs` diff 新旧 SDK 的 API/docs**。删除/改签名是**破坏性**的（verify 会红，报错先读 `API.md`/`docs/README.md` 再改）；**新增的可选 API（如 0.8.4 的 `locale`）verify 绿也照样是真实影响，必须在方案里列出并问是否采用**——只靠文件 diff + 试点 verify 会漏掉它（真实踩过）。**`sdk-api-diff` 的 `docs/ added: <x>.md`（哪怕 capability / host-event 计数没变）= 新增了一篇文档，往往意味着新子路径 / 新编写范式——必读那篇 doc**：0.8.5 的 capability 数没变，却新增 `docs/preview.md` + `@clipbus/plugin-sdk/preview`（`createPreviewWorkbench`），取代各插件手写的 `PreviewShellApp.vue`（真实踩过，要逐插件迁移 preview——见下「架构迁移要传播」条）。**`docs/ modified` 也必须读文字 diff**（脚本只给文件名，自己 `npm pack` 新旧版解包后 `diff -u old/package/docs new/package/docs`）：0.10.0 的 capability 只有 ADDED、REMOVED 为空，但 docs 文字里写着「不再导出 runtime `host` 单例，只能用 `ctx.host`」+ 示例类型 `PluginActionHandler`→`PluginAutoRunActionHandler`——**导出级破坏不会出现在 capability 列表里**。对照方法：列出各插件实际 import 的 SDK 符号（`rg -U` 多行 import），逐个确认新版仍导出，再由试点 typecheck 兜底。**另：脚本自身也会被 SDK 内部重命名打坏**——若 `Capabilities REMOVED` 列出几乎全部能力、ADDED 为空，先怀疑脚本解析失效而非 SDK 删了能力（0.10.0 把 `capabilityClients.generated.d.ts` 改名为 `capabilities.generated.*`，已修为扫描 dist 全部 d.ts + API.md §2 标题兜底）。
 - **added 文件不在 `git diff` 里**：上游新增文件是 untracked，必须从 `pull-template.mjs` 清单取，否则会漏传播。
 - **dist 在真实路径重建**：dist 是 gitignore 产物、宿主实际加载它；在当前分支重建（别跑去 worktree）。
 - **全新 Agent 并行**：不复用 idle executor；orchestrator 独占根索引等共享物；自己复跑 verify 复核。

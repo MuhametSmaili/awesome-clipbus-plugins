@@ -280,7 +280,7 @@ watch(draftTopic, (d) => Object.assign(draft, d ?? {}), { immediate: true });
 // 宿主条按钮：clipbus.action.onHostInvoke.on(async (d) => { if (d.buttonID === "submit") … })
 ```
 
-UI↔Node 自定义 RPC（如让 Node 干重活/生图）：Runtime 用 `defineMessage<Req,Resp>("<topic>.key").handle(fn)` 注册进 `messageHandlers`；UI `await clipbus.runtime.invoke({ key: "<topic>.key", payload })`。生成图片：Node 写临时 PNG → `host.asset.registerImage({ path })` 得 `clipbus-asset://` URL → UI `<img :src>`。
+UI↔Node 自定义 RPC（如让 Node 干重活/生图）：Runtime 用 `defineMessage<Req,Resp>("<topic>.key").handle(fn)` 注册进 `messageHandlers`；UI `await clipbus.runtime.invoke({ key: "<topic>.key", payload })`。生成图片：`ctx.host.asset.allocateImageTempPath({ formatHint: "png" })` 拿宿主分配的会话路径 → Node 写入该路径 → `ctx.host.asset.registerImage({ path })` 得 `clipbus-asset://` URL → UI `<img :src>`（SDK ≥0.10.0：别写 `os.tmpdir()` 自造路径，Windows 只接受已分配路径）。宿主能力一律走 handler 收到的 `ctx.host`，SDK 0.10.0 起不再导出 `host` 单例。
 
 > **视觉要贴合宿主**：draft action 的根 `<main>` 透明、无 `padding`，且**顶层 section 水平内距清零、内容贴边**（宿主 action 面板已自带 padding，否则双层内距）。详见 [§11 视觉规范](#11-视觉规范)。
 

@@ -1,0 +1,31 @@
+name: Skill directory links
+
+on:
+  push:
+    paths:
+      - .agents/**
+      - .claude/skills/**
+      - .codex/skills/**
+      - .gitignore
+      - .github/workflows/skill-links.yml
+  pull_request:
+    paths:
+      - .agents/**
+      - .claude/skills/**
+      - .codex/skills/**
+      - .gitignore
+      - .github/workflows/skill-links.yml
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: node .agents/scripts/link-skills.mjs
+      - run: node --test .agents/scripts/link-skills.test.mjs

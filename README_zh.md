@@ -28,8 +28,14 @@ Clipbus 免费版每类能力（detector / renderer / action）各有 3 个插�
 ## 用 AI 创建和维护插件
 
 1. Clone 本仓库。
-2. 用你常用的 AI Coding Agent 打开仓库。
-3. 直接描述要创建的插件或要执行的维护任务。
+2. 在仓库根运行 `node .agents/scripts/link-skills.mjs`。
+3. 用你常用的 AI Coding Agent 打开仓库。
+4. 直接描述要创建的插件或要执行的维护任务。
+
+`.agents/skills/` 是唯一真相源。初始化命令让本地 `.claude/skills` 和 `.codex/skills`
+指向它：macOS 使用相对符号链接，Windows 使用目录 junction。客户端链接由 Git 忽略，不复制技能文件。
+移动仓库后重新执行即可修复链接；若客户端目录已存放独立技能，脚本会拒绝覆盖，应先将内容整理到 `.agents/skills/`。
+链接回归测试通过 CI 的 macOS / Windows 矩阵运行。
 
 仓库在 `.agents/skills/` 中提供了两套专用工作流：
 

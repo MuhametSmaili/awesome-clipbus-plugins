@@ -15,6 +15,12 @@
 
 仓库示例与注释可能滞后，冲突以安装版本的 API.md 为准。不要查看或修改 SDK 实现源码。
 
+## 技能唯一真相源
+
+技能仅维护在 `.agents/skills/`。`.claude/skills` 和 `.codex/skills` 是指向它的本地目录链接，不维护副本。
+Clone 或移动仓库后运行 `node .agents/scripts/link-skills.mjs`：macOS 创建相对符号链接，Windows 创建目录 junction。
+两个客户端路径由 Git 忽略，避免依赖 Windows 的 Git 符号链接检出配置。修改技能内容、资源或脚本时一律改 `.agents/skills/`。
+
 ## Shell 与常用命令
 
 用户使用 zsh。依赖用户安装工具的命令通过 `/bin/zsh -ic '<command>'` 运行，保留交互式 zsh 的全部 PATH。

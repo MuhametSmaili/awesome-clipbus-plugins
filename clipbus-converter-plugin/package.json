@@ -9,8 +9,6 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "dev": "vite --host 127.0.0.1 --open /src/preview/preview-host/index.html",
-    "dev:renderer": "vite --host 127.0.0.1 --open /src/preview/preview-host/index.html?view=renderer",
-    "dev:action": "vite --host 127.0.0.1 --open /src/preview/preview-host/index.html?view=action",
     "build:runtime": "node ./scripts/build-runtime.mjs",
     "build:ui": "node ./scripts/build-ui.mjs",
     "verify:build": "node ./scripts/verify-build.mjs",
@@ -22,11 +20,10 @@
     "verify:manifest": "clipbus-validate-manifest .",
     "verify:manifest:runtime": "clipbus-validate-manifest . --runtime",
     "verify": "npm run verify:manifest && npm run build && npm run verify:manifest:runtime && npm test",
-    "test": "node --experimental-strip-types --require ./tests/setup.cjs --test ./tests/**/*.test.cjs",
-    "export": "node ./scripts/export.mjs"
+    "test": "node --test './tests/**/*.test.cjs'"
   },
   "dependencies": {
-    "@clipbus/plugin-sdk": "^0.10.0",
+    "@clipbus/plugin-sdk": "^2.0.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {

@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeColorPayload } from "./payload";
+import { computed } from "vue";
+import { ctx } from "@clipbus/plugin-sdk/view";
+import { useCard, useCardButton } from "../../shared/composables/useCard";
+import { attachment, decodeColorPayload } from "./payload";
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
-const payload = computed(() =>
-  decodeColorPayload(attachmentPayload.value?.attachment?.payloadJson)
-);
+const card = useCard(attachment);
+const payload = computed(() => decodeColorPayload(card.attachment.value.payload));
 
 function wcagLevel(ratio: number): string {
   if (ratio >= 7) return "AAA";
@@ -15,27 +13,10 @@ function wcagLevel(ratio: number): string {
   return "—";
 }
 
-let unsub: (() => void) | null = null;
-
-onMounted(async () => {
-  try {
-    await clipbus.attachmentRenderer.setButtons({
-      buttons: [{ id: "copy", title: "Copy All Formats" }],
-    });
-  } catch {
-    /* not in attachment renderer context */
-  }
-
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy" && payload.value) {
-      const { hex, rgbString, hslString } = payload.value;
-      await clipbus.clipboard.copyText({ text: `${hex}\n${rgbString}\n${hslString}` });
-    }
-  });
-});
-
-onUnmounted(() => {
-  unsub?.();
+useCardButton("copy", async () => {
+  if (!payload.value) return;
+  const { hex, rgbString, hslString } = payload.value;
+  await ctx.system.copyText({ text: `${hex}\n${rgbString}\n${hslString}` });
 });
 </script>
 

@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.extractor.mac" as const;
 
@@ -123,39 +123,19 @@ export function createMacPayload(input: unknown): MacPayload | null {
 }
 
 /**
- * Decode and validate a payloadJson string.
+ * Decode a structured payload or a serialized payload.
  * Returns null for missing or malformed data.
  */
 export function decodeMacPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): MacPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (p.kind !== "mac_address") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as { kind?: string };
+    if (!p || typeof p !== "object" || p.kind !== "mac_address") return null;
     return p as MacPayload;
   } catch {
     return null;
   }
 }
 
-/**
- * Build a detector artifact from an input object.
- * Returns null when content is not a single valid MAC address.
- */
-export function buildMacArtifact(
-  input: unknown
-): PluginDetectorArtifact | null {
-  const payload = createMacPayload(input);
-  if (!payload) return null;
-
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "extractor",
-      searchText: `${payload.colonLower} mac address ${payload.oui}`,
-      label: "MAC Address",
-    },
-  };
-}
+export const attachment = defineAttachment<MacPayload>(ATTACHMENT_TYPE);

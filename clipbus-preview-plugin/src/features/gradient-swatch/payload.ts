@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.preview.gradient";
 
@@ -11,6 +11,8 @@ export interface GradientPayload {
   stops: string[];
   angleOrShape: string | null;
 }
+
+export const attachment = defineAttachment<GradientPayload>(ATTACHMENT_TYPE);
 
 const GRADIENT_PREFIX_RE = /^(repeating-)?(linear|radial|conic)-gradient\s*\(/i;
 
@@ -154,34 +156,16 @@ export function createGradientPayload(input: unknown): GradientPayload | null {
 }
 
 /**
- * Decode and validate a payloadJson string. Returns null for bad/missing data.
+ * Decode and validate a structured payload (or serialized domain sample). Returns null for bad/missing data.
  */
 export function decodeGradientPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): GradientPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (p.kind !== "gradient_swatch") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as GradientPayload | null;
+    if (p?.kind !== "gradient_swatch" || p.version !== 1) return null;
     return p as GradientPayload;
   } catch {
     return null;
   }
-}
-
-/**
- * Build a detector artifact from an input object. Returns null if content is not a gradient.
- */
-export function buildGradientArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createGradientPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "preview",
-      searchText: `gradient ${payload.gradientType} ${payload.stops.join(" ")}`.slice(0, 200),
-      label: "Gradient",
-    },
-  };
 }

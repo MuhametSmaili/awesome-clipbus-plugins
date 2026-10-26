@@ -2,9 +2,8 @@ import { createPreviewWorkbench } from "@clipbus/plugin-sdk/preview";
 import { createApp, type Component } from "vue";
 import "../../shared/base.css";
 import { attachmentScenarios } from "../scenarios/attachmentScenarios";
-import { actionScenarios } from "../scenarios/actionScenarios";
 
-// PER-PLUGIN: import every renderer + draft-action feature component.
+// PER-PLUGIN: import every renderer feature component.
 import TimestampRenderer from "../../features/timestamp-renderer/app.vue";
 import RadixRenderer from "../../features/radix-renderer/app.vue";
 import DurationRenderer from "../../features/duration/app.vue";
@@ -23,7 +22,7 @@ const COMPONENTS: Record<string, Component> = {
 };
 
 createPreviewWorkbench(document.getElementById("app")!, {
-  scenarios: [...attachmentScenarios, ...actionScenarios],
+  scenarios: attachmentScenarios,
   mount(slotEl, { scenario }) {
     const Comp = COMPONENTS[scenario.view ?? ""] ?? TimestampRenderer;
     const app = createApp(Comp);

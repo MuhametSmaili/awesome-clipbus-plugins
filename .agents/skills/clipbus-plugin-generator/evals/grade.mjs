@@ -9,8 +9,9 @@
  * 注意: "npm run verify 全绿" 这条不在此脚本内跑（耗时/需环境），由调用方真实运行后另记。
  *       本脚本检查结构、接线、索引、以及（若能加载）解码逻辑等可静态/轻量核验项。
  */
-import { readFile, stat, readdir } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const [, , repoRootArg, pluginDirArg] = process.argv;
 if (!repoRootArg || !pluginDirArg) {
@@ -52,36 +53,26 @@ async function main() {
   );
 
   const detectors = manifest?.detectors ?? [];
-  const renderers = manifest?.attachmentRenderers ?? [];
+  const renderers = manifest?.renderers ?? [];
   const actions = manifest?.actions ?? [];
 
-  // 3. detector ⇒ renderer 配对（若有 detector 必有 renderer）
-  add(
-    "detector 必配 renderer",
-    detectors.length === 0 ? renderers.length >= 0 : renderers.length >= 1,
-    `detectors=${detectors.length} renderers=${renderers.length}`
-  );
-  add("至少有一个展示型能力(renderer)", renderers.length >= 1, `renderers=${renderers.length}`);
+  add("manifest 使用 schema v5", manifest?.schemaVersion === 5, manifest?.schemaVersion);
+  add("至少有一个有效能力", detectors.length + renderers.length + actions.length > 0,
+    `detectors=${detectors.length} renderers=${renderers.length} actions=${actions.length}`);
 
-  // 4. 每个能力 id 都在 plugin.ts 注册（以 id 字面量出现）
-  const pluginTs = (await tryRead(path.join(root, "src/plugin.ts"))) ?? "";
-  const allIds = [
-    ...detectors.map((d) => d.id),
-    ...renderers.map((r) => r.id),
-    ...actions.map((a) => a.id),
-  ].filter(Boolean);
-  const missingInPluginTs = allIds.filter((id) => !pluginTs.includes(id));
-  add(
-    "manifest 能力 id 都在 src/plugin.ts 注册",
-    allIds.length > 0 && missingInPluginTs.length === 0,
-    missingInPluginTs.length ? `缺: ${missingInPluginTs.join(",")}` : `全部 ${allIds.length} 个已注册`
-  );
+  // Execute the delivered verifier: string matching cannot validate imported handlers.
+  let registryEvidence;
+  let registryOk = false;
+  try {
+    registryEvidence = execFileSync(process.execPath, [path.join(root, "scripts/verify-build.mjs")], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    registryOk = true;
+  } catch (error) {
+    registryEvidence = error.stderr?.toString() ?? error.message;
+  }
+  add("构建产物的 handler 与页面引用正确", registryOk, registryEvidence);
 
-  // 5. UI 能力（renderer + 带 uiEntry 的 action）有同名 feature 目录含 main.ts+index.html
-  const uiIds = [
-    ...renderers.map((r) => r.id),
-    ...actions.filter((a) => a.uiEntry).map((a) => a.id),
-  ].filter(Boolean);
+  // Card pages are the only UI contributions.
+  const uiIds = renderers.map((r) => r.id).filter(Boolean);
   const badUiDirs = [];
   for (const id of uiIds) {
     const d = path.join(root, "src/features", id);
@@ -90,7 +81,7 @@ async function main() {
   }
   add(
     "UI 能力有同名 feature 目录(含 main.ts+index.html)",
-    uiIds.length > 0 && badUiDirs.length === 0,
+    badUiDirs.length === 0,
     badUiDirs.length ? `缺/不全: ${badUiDirs.join(",")}` : `${uiIds.length} 个 UI 目录齐全`
   );
 
@@ -107,7 +98,7 @@ async function main() {
   );
 
   // 8. dist 产物存在（npm run build 跑过的代理证据；权威绿/红由调用方真实 verify）
-  add("已构建出 dist/plugin.cjs", await exists(path.join(root, "dist/plugin.cjs")), "dist/plugin.cjs");
+  add("manifest 的 runtime 产物存在", !manifest?.runtime?.nodeEntry || await exists(path.join(root, manifest.runtime.nodeEntry)), manifest?.runtime?.nodeEntry ?? "card-only plugin");
 
   const passedCount = checks.filter((c) => c.passed).length;
   process.stdout.write(JSON.stringify(

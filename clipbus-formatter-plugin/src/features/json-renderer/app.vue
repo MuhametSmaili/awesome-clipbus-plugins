@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeJsonPayload } from "./payload";
+import { useCard, useCardButton } from "../../shared/composables/useCard";
+import { attachment, decodeJsonPayload } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the preview workbench document.body is the whole page, so without a target autoFit
-// never converges and spams setHeight every frame.
+// never converges and spams height updates every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const card = useCard(attachment);
 const payload = computed(() =>
-  decodeJsonPayload(attachmentPayload.value?.attachment?.payloadJson),
+  decodeJsonPayload(card.attachment.value.payload),
 );
 
 type ViewMode = "json" | "min" | "yaml";
@@ -30,7 +30,6 @@ const codeLabel = computed(() => {
   return "Formatted Result";
 });
 
-let unsub: (() => void) | null = null;
 let stopAutoFit: (() => void) | null = null;
 
 async function syncCopyButton(): Promise<void> {
@@ -38,33 +37,32 @@ async function syncCopyButton(): Promise<void> {
     let title = "Copy Pretty";
     if (activeView.value === "yaml") title = "Copy YAML";
     else if (activeView.value === "min") title = "Copy Min";
-    await clipbus.attachmentRenderer.setButtons({
+    await ctx.renderer.update({
       buttons: [{ id: "copy", title }],
     });
-  } catch {
-    /* not in attachment renderer context */
+  } catch (error) {
+    ctx.log.warn("Could not update copy button", error);
   }
 }
 
-onMounted(async () => {
+useCardButton("copy", async () => {
+  if (payload.value) {
+    let text = payload.value.formatted;
+    if (activeView.value === "yaml") text = payload.value.yaml;
+    else if (activeView.value === "min") text = payload.value.minified;
+    await ctx.system.copyText({ text });
+  }
+});
+
+onMounted(() => {
   stopAutoFit = autoFit({ min: 160, max: 480, target: rootEl.value ?? undefined });
 
-  await syncCopyButton();
-
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy" && payload.value) {
-      let text = payload.value.formatted;
-      if (activeView.value === "yaml") text = payload.value.yaml;
-      else if (activeView.value === "min") text = payload.value.minified;
-      await clipbus.clipboard.copyText({ text });
-    }
-  });
+  void syncCopyButton();
 });
 
 watch(activeView, syncCopyButton);
 
 onUnmounted(() => {
-  unsub?.();
   stopAutoFit?.();
 });
 </script>

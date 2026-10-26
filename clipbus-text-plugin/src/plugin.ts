@@ -12,22 +12,15 @@ import {
 } from "./features/line-tools/json.ts";
 
 export default definePlugin({
-  setup() {
-    return {
-      attachmentRenderers: {},
-      detectors: {},
-      actions: {
-        "text-sort": createSortAction(),
-        "text-dedup": createDedupAction(),
-        "text-trim": createTrimAction(),
-        "text-strip-ansi": createStripAnsiAction(),
-        "text-reverse-lines": createReverseLinesAction(),
-        "text-reverse-characters": createReverseCharactersAction(),
-        "text-sort-characters": createSortCharactersAction(),
-        "text-pretty-json": createPrettyJsonAction(),
-        "text-minify-json": createMinifyJsonAction(),
-      },
-      messageHandlers: {},
-    };
+  actions: {
+    "text-sort": createSortAction(),
+    "text-dedup": createDedupAction(),
+    "text-trim": createTrimAction(),
+    "text-strip-ansi": createStripAnsiAction(),
+    "text-reverse-lines": createReverseLinesAction(),
+    "text-reverse-characters": createReverseCharactersAction(),
+    "text-sort-characters": createSortCharactersAction(),
+    "text-pretty-json": createPrettyJsonAction(),
+    "text-minify-json": createMinifyJsonAction(),
   },
 });

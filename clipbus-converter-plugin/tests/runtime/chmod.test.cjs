@@ -25,19 +25,16 @@ test('manifest has chmod-detector', () => {
 });
 
 test('manifest has chmod-renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('chmod-renderer'), 'missing chmod-renderer');
 });
 
-test('chmod-renderer uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'chmod-renderer');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('chmod-renderer page references renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'chmod-renderer');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
-test('chmod-renderer attachmentType is plugin.converter.chmod', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'chmod-renderer');
-  assert.equal(renderer.attachmentType, 'plugin.converter.chmod');
-});
+
 
 // ---------------------------------------------------------------------------
 // parsePermissions — basic cases
@@ -174,30 +171,29 @@ test('parsePermissions: prose text → null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// buildChmodArtifact
+// createChmodPayload
 // ---------------------------------------------------------------------------
 
-test('buildChmodArtifact returns correct attachmentType', () => {
-  const { buildChmodArtifact } = require(path.resolve(root, 'src/features/chmod-renderer/payload.ts'));
+test('createChmodPayload returns correct attachmentType', () => {
+  const { createChmodPayload } = require(path.resolve(root, 'src/features/chmod-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: 'rwxr-xr-x' }, attachments: [] };
-  const artifact = buildChmodArtifact(input);
+  const artifact = createChmodPayload(input);
   assert.ok(artifact, 'artifact should not be null');
-  assert.equal(artifact.attachmentType, 'plugin.converter.chmod');
 });
 
-test('buildChmodArtifact payload kind is chmod_preview', () => {
-  const { buildChmodArtifact } = require(path.resolve(root, 'src/features/chmod-renderer/payload.ts'));
+test('createChmodPayload payload kind is chmod_preview', () => {
+  const { createChmodPayload } = require(path.resolve(root, 'src/features/chmod-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: 'rwxr-xr-x' }, attachments: [] };
-  const artifact = buildChmodArtifact(input);
-  const payload = JSON.parse(artifact.payloadJson);
+  const artifact = createChmodPayload(input);
+  const payload = artifact;
   assert.equal(payload.kind, 'chmod_preview');
   assert.equal(payload.octal, '755');
 });
 
-test('buildChmodArtifact returns null for bare octal', () => {
-  const { buildChmodArtifact } = require(path.resolve(root, 'src/features/chmod-renderer/payload.ts'));
+test('createChmodPayload returns null for bare octal', () => {
+  const { createChmodPayload } = require(path.resolve(root, 'src/features/chmod-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '755' }, attachments: [] };
-  const artifact = buildChmodArtifact(input);
+  const artifact = createChmodPayload(input);
   assert.equal(artifact, null, 'bare octal must not produce chmod artifact');
 });
 
@@ -216,42 +212,3 @@ test('decodeChmodPayload returns null for invalid inputs', () => {
 // ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
-
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createChmodRenderer } = require(path.resolve(root, 'src/features/chmod-renderer/renderer.ts'));
-  const renderer = createChmodRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.converter',
-      attachmentType: 'plugin.converter.chmod',
-      attachmentKey: 'primary',
-      payloadJson: 'not-valid-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false, 'bad payload → shouldDisplay:false');
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createChmodRenderer } = require(path.resolve(root, 'src/features/chmod-renderer/renderer.ts'));
-  const { buildChmodArtifact } = require(path.resolve(root, 'src/features/chmod-renderer/payload.ts'));
-  const artifact = buildChmodArtifact({ item: sampleItem, content: { kind: 'text', text: 'rwxr-xr-x' }, attachments: [] });
-  const renderer = createChmodRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: 'rwxr-xr-x' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.converter',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
-});

@@ -1,4 +1,6 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
+
+export const ATTACHMENT_TYPE = "plugin.preview.color";
 
 export interface ColorPayload {
   kind: "color_swatch";
@@ -18,6 +20,8 @@ export interface ColorPayload {
     facts: { label: string; value: string }[];
   };
 }
+
+export const attachment = defineAttachment<ColorPayload>(ATTACHMENT_TYPE);
 
 // 28 common CSS named colors
 const NAMED_COLORS: Record<string, string> = {
@@ -271,34 +275,16 @@ export function createColorPayload(input: unknown): ColorPayload | null {
 }
 
 /**
- * Decode and validate a payloadJson string. Returns null for bad/missing data.
+ * Decode and validate a structured payload (or serialized domain sample). Returns null for bad/missing data.
  */
 export function decodeColorPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): ColorPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (p.kind !== "color_swatch") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as ColorPayload | null;
+    if (p?.kind !== "color_swatch" || p.version !== 1) return null;
     return p as ColorPayload;
   } catch {
     return null;
   }
-}
-
-/**
- * Build a detector artifact from an input object. Returns null if content is not a color.
- */
-export function buildColorArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createColorPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: "plugin.preview.color",
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "color",
-      searchText: payload.hex,
-      label: "Color",
-    },
-  };
 }

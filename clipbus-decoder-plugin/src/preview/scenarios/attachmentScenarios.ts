@@ -2,6 +2,7 @@
 // Consumed by createPreviewWorkbench (preview-host/main.ts); `view` selects the
 // feature component to mount. Add one entry per attachment renderer feature.
 
+import manifest from "../../../manifest.json";
 import type { PreviewScenario } from "@clipbus/plugin-sdk/preview";
 
 const PLUGIN_ID = "plugin.decoder";
@@ -77,42 +78,27 @@ const jwtCanonicalPayload = JSON.stringify({
   signaturePresent: true,
 });
 
-/** Build an attachmentRenderer scenario; `view` routes to the feature component. */
+/** Build a V2 card scenario from this plugin's payload and manifest defaults. */
 function renderer(opts: {
   id: string;
   label: string;
   view: string;
-  accentHex: string;
-  attachmentType: string;
   payloadJson: string;
-  min: number;
-  max: number;
 }): PreviewScenario {
-  const item = {
-    id: `item-${opts.id}`,
-    type: "text",
-    tags: ITEM_TAGS,
-    sourceAppID: SOURCE_APP,
-  };
+  const declared = manifest.renderers.find((entry) => entry.id === opts.view)!;
+  const reference = { type: declared.attachmentType, key: "primary", updatedAt: 1, own: true };
   return {
     id: opts.id,
     label: opts.label,
-    mode: "attachmentRenderer",
-    pluginID: PLUGIN_ID,
-    accentHex: opts.accentHex,
     view: opts.view,
-    viewport: { heightPolicy: "bounded", min: opts.min, max: opts.max },
-    item,
-    attachment: {
-      item,
-      attachment: {
-        historyID: `preview-${opts.id}`,
-        owner: PLUGIN_ID,
-        attachmentType: opts.attachmentType,
-        attachmentKey: "primary",
-        payloadJson: opts.payloadJson,
-      },
+    plugin: { id: PLUGIN_ID, version: manifest.plugin.version },
+    item: {
+      id: `item-${opts.id}`, kind: "text", tags: ITEM_TAGS, sourceApp: SOURCE_APP,
+      pinned: false, createdAt: 1, lastCopiedAt: 1, attachments: [reference],
     },
+    attachment: { ...reference, payload: JSON.parse(opts.payloadJson) },
+    renderer: { title: declared.title, tint: declared.tint, buttons: declared.buttons },
+    height: declared.height,
   };
 }
 
@@ -121,50 +107,30 @@ export const attachmentScenarios: PreviewScenario[] = [
     id: "base64-renderer-hello",
     label: "Base64: Hello, World!",
     view: "base64-renderer",
-    accentHex: "#0F766E",
-    attachmentType: "plugin.decoder.base64",
-    min: 120,
-    max: 320,
     payloadJson: base64HelloPayload,
   }),
   renderer({
     id: "base64-renderer-json",
     label: "Base64: JSON payload",
     view: "base64-renderer",
-    accentHex: "#0F766E",
-    attachmentType: "plugin.decoder.base64",
-    min: 120,
-    max: 320,
     payloadJson: base64JsonPayload,
   }),
   renderer({
     id: "data-uri-text-plain",
     label: "Data URI: text/plain base64",
     view: "data-uri",
-    accentHex: "#0369A1",
-    attachmentType: "plugin.decoder.datauri",
-    min: 120,
-    max: 320,
     payloadJson: dataUriTextPayload,
   }),
   renderer({
     id: "data-uri-image-png",
     label: "Data URI: image/png",
     view: "data-uri",
-    accentHex: "#0369A1",
-    attachmentType: "plugin.decoder.datauri",
-    min: 120,
-    max: 320,
     payloadJson: dataUriImagePayload,
   }),
   renderer({
     id: "jwt-renderer-canonical",
     label: "JWT: HS256 canonical token",
     view: "jwt-renderer",
-    accentHex: "#7C3AED",
-    attachmentType: "plugin.decoder.jwt",
-    min: 140,
-    max: 440,
     payloadJson: jwtCanonicalPayload,
   }),
 ];

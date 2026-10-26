@@ -2,9 +2,8 @@ import { createPreviewWorkbench } from "@clipbus/plugin-sdk/preview";
 import { createApp, type Component } from "vue";
 import "../../shared/base.css";
 import { attachmentScenarios } from "../scenarios/attachmentScenarios";
-import { actionScenarios } from "../scenarios/actionScenarios";
 
-// PER-PLUGIN: import every renderer + draft-action feature component.
+// PER-PLUGIN: import every renderer feature component.
 import Base64Renderer from "../../features/base64-renderer/app.vue";
 import DataUri from "../../features/data-uri/app.vue";
 import JwtRenderer from "../../features/jwt-renderer/app.vue";
@@ -17,7 +16,7 @@ const COMPONENTS: Record<string, Component> = {
 };
 
 createPreviewWorkbench(document.getElementById("app")!, {
-  scenarios: [...attachmentScenarios, ...actionScenarios],
+  scenarios: attachmentScenarios,
   mount(slotEl, { scenario }) {
     const Comp = COMPONENTS[scenario.view ?? ""] ?? Base64Renderer;
     const app = createApp(Comp);

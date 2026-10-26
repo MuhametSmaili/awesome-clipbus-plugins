@@ -1,10 +1,10 @@
 import { createPreviewWorkbench } from "@clipbus/plugin-sdk/preview";
 import { createApp, type Component } from "vue";
+import { autoFit } from "@clipbus/plugin-sdk/dom";
 import "../../shared/base.css";
 import { attachmentScenarios } from "../scenarios/attachmentScenarios";
-import { actionScenarios } from "../scenarios/actionScenarios";
 
-// PER-PLUGIN: import every renderer + draft-action feature component.
+// PER-PLUGIN: import every renderer feature component.
 import ColorSwatch from "../../features/color-swatch/app.vue";
 import GradientSwatch from "../../features/gradient-swatch/app.vue";
 import MarkdownRenderer from "../../features/markdown-renderer/app.vue";
@@ -17,11 +17,14 @@ const COMPONENTS: Record<string, Component> = {
 };
 
 createPreviewWorkbench(document.getElementById("app")!, {
-  scenarios: [...attachmentScenarios, ...actionScenarios],
+  scenarios: attachmentScenarios,
   mount(slotEl, { scenario }) {
     const Comp = COMPONENTS[scenario.view ?? ""] ?? ColorSwatch;
     const app = createApp(Comp);
     app.mount(slotEl);
-    return () => app.unmount();
+    const stopAutoFit = scenario.view === "markdown-renderer"
+      ? autoFit({ min: scenario.height?.min, max: scenario.height?.max, target: slotEl.querySelector<HTMLElement>(".shell") ?? slotEl })
+      : () => {};
+    return () => { stopAutoFit(); app.unmount(); };
   },
 });

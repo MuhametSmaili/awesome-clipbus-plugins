@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export interface WorldClockZone {
   label: string;
@@ -99,9 +99,9 @@ export function createTimestampPayload(input: unknown): TimestampPayload | null 
   };
 }
 
-export function decodeTimestampPayload(payloadJson: string | null | undefined): TimestampPayload | null {
+export function decodeTimestampPayload(value: unknown): TimestampPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (p.kind !== "timestamp_preview") return null;
     const payload = p as TimestampPayload;
     if (!Array.isArray(payload.zones)) payload.zones = [];
@@ -111,17 +111,4 @@ export function decodeTimestampPayload(payloadJson: string | null | undefined): 
   }
 }
 
-export function buildTimestampArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createTimestampPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "converter",
-      searchText: payload.iso,
-      label: "Unix Timestamp",
-    },
-  };
-}
+export const attachment = defineAttachment<TimestampPayload>(ATTACHMENT_TYPE);

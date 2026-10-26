@@ -27,7 +27,7 @@ Clipbus plugin that detects encoded clipboard strings and exposes composable enc
 
 ### Encoding and escaping actions
 
-Ten independent auto-run actions provide URL, HTML, Base64, Unicode, and JSON encode/decode pairs. Each action consumes the current cascade text and returns text that can continue through another host action.
+Ten independent actions provide URL, HTML, Base64, Unicode, and JSON encode/decode pairs. Each action consumes the current cascade text and returns text that can continue through another host action.
 
 ## Development
 

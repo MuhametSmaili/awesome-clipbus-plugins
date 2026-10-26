@@ -1,4 +1,6 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
+
+export const ATTACHMENT_TYPE = "plugin.extractor.url" as const;
 
 export interface UrlPayload {
   kind: "url_parsed";
@@ -213,14 +215,14 @@ export function createUrlPayload(input: unknown): UrlPayload | null {
 }
 
 /**
- * Decode and validate a payloadJson string. Returns null for bad/missing data.
+ * Decode a structured payload or a serialized payload. Returns null for bad/missing data.
  */
 export function decodeUrlPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): UrlPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string; href?: string; query?: { key: string; value: string }[] };
-    if (p.kind !== "url_parsed") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as { kind?: string; href?: string; query?: { key: string; value: string }[] };
+    if (!p || typeof p !== "object" || p.kind !== "url_parsed") return null;
     const query = Array.isArray(p.query) ? p.query : [];
     const metadata = queryMetadata(query);
     const withDefaults: unknown = {
@@ -236,22 +238,17 @@ export function decodeUrlPayload(
   }
 }
 
-/**
- * Build a detector artifact from an input object. Returns null if content is not a URL.
- */
-export function buildUrlArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createUrlPayload(input);
-  if (!payload) return null;
+export const attachment = defineAttachment<UrlPayload>(ATTACHMENT_TYPE);
+
+/** Initial appearance follows the parsed URL, including the tracking cleaner. */
+export function createUrlCard(payload: UrlPayload) {
   return {
-    attachmentType: "plugin.extractor.url",
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: payload.inputType,
-      searchText: payload.inputType === "url"
-        ? payload.host
-        : payload.query.map(({ key, value }) => `${key} ${value}`).join(" "),
-      label: payload.inputType === "url" ? "URL" : "Query String",
-    },
+    title: payload.inputType === "query" ? "Query String" : "URL Details",
+    buttons: payload.inputType === "query"
+      ? [{ id: "copy", title: "Copy as JSON" }]
+      : [
+          ...(payload.trackingParams.length > 0 ? [{ id: "copy-clean", title: "Copy clean URL" }] : []),
+          { id: "copy", title: "Copy query params (JSON)" },
+        ],
   };
 }

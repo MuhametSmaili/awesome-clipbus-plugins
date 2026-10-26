@@ -1,112 +1,101 @@
-/**
- * verify-build.mjs — Generic build verifier for Clipbus plugins.
- *
- * Reads manifest.json to derive expected artifacts, then asserts:
- *   1. dist/plugin.cjs exists, contains "definePlugin", and includes every
- *      declared capability id as a substring.
- *   2. For each attachmentRenderer and each action with a uiEntry:
- *        dist/ui/<kind>/<id>/index.html  — exists and references ./index.js + ./index.css
- *        dist/ui/<kind>/<id>/index.js   — exists
- *        dist/ui/<kind>/<id>/index.css  — exists
- *        HTML must NOT contain src="/" or href="/" (absolute local asset refs).
- *
- * Usage: node scripts/verify-build.mjs  (run from plugin root)
- */
-import { readFile } from "node:fs/promises";
+// Check the delivered build in dist/, as the Host will use it:
+//
+// 1. `runtime.nodeEntry` loads as a plugin module and registers exactly the
+//    detectors and Actions the manifest declares. A declared id without a
+//    handler fails every call with PluginHandlerNotFound; a handler without a
+//    manifest entry is never called.
+// 2. Every renderer page references its scripts, styles and images by paths
+//    relative to the page that exist inside the plugin. The Host loads the page
+//    from the plugin directory: an absolute or missing reference leaves the
+//    card blank.
+//
+// File existence of the manifest paths themselves is checked by
+// `clipbus-validate-manifest . --runtime`.
+
+import { access, readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, "..");
-const manifestPath = path.resolve(projectRoot, "manifest.json");
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const manifest = JSON.parse(await readFile(path.join(projectRoot, "manifest.json"), "utf8"));
+const problems = [];
 
-/** Read a file as UTF-8; return null when it does not exist. */
-async function tryRead(filePath) {
-  try {
-    return await readFile(filePath, "utf8");
-  } catch {
-    return null;
+// ── 1. Runtime registry ──────────────────────────────────────────────────────
+
+/** The launch context a Host passes to `setup`; this check needs no real directories. */
+function launchContext() {
+  const scratch = path.join(projectRoot, "dist", ".verify-build");
+  return {
+    protocol: 2,
+    plugin: { id: manifest.plugin.id, title: manifest.plugin.title, version: manifest.plugin.version },
+    host: { platform: process.platform === "win32" ? "windows" : "macos", version: "verify-build", devMode: true },
+    dirs: { root: projectRoot, data: path.join(scratch, "data"), cache: path.join(scratch, "cache") },
+    capabilities: [],
+  };
+}
+
+function compareHandlers(kind, declared, registered) {
+  const declaredIds = (declared ?? []).map((entry) => entry.id);
+  const registeredIds = Object.keys(registered ?? {});
+  for (const id of declaredIds.filter((id) => !registeredIds.includes(id))) {
+    problems.push(`manifest ${kind} "${id}" has no handler in ${manifest.runtime.nodeEntry}`);
+  }
+  for (const id of registeredIds.filter((id) => !declaredIds.includes(id))) {
+    problems.push(`${manifest.runtime.nodeEntry} registers ${kind} "${id}", which manifest.json does not declare`);
   }
 }
 
-// ── Load manifest ────────────────────────────────────────────────────────────
-
-const manifestContent = await readFile(manifestPath, "utf8").catch(() => {
-  throw new Error(`Cannot read manifest.json at ${manifestPath}`);
-});
-const manifest = JSON.parse(manifestContent);
-
-const detectorIds = (manifest.detectors ?? []).map((d) => d.id).filter(Boolean);
-const renderers = manifest.attachmentRenderers ?? [];
-const rendererIds = renderers.map((r) => r.id).filter(Boolean);
-const actions = manifest.actions ?? [];
-const actionIds = actions.map((a) => a.id).filter(Boolean);
-const actionsWithUI = actions.filter((a) => a.id && a.uiEntry);
-
-const allCapabilityIds = [...detectorIds, ...rendererIds, ...actionIds];
-
-// ── 1. Runtime bundle ────────────────────────────────────────────────────────
-
-const runtimePath = path.resolve(projectRoot, "dist/plugin.cjs");
-const runtimeContent = await tryRead(runtimePath);
-if (runtimeContent === null) {
-  throw new Error(
-    "dist/plugin.cjs not found — run `npm run build:runtime` first."
-  );
-}
-
-if (!runtimeContent.includes("definePlugin")) {
-  throw new Error(
-    "dist/plugin.cjs does not contain the string 'definePlugin'. " +
-      "Ensure src/plugin.ts uses definePlugin() from @clipbus/plugin-sdk/runtime."
-  );
-}
-
-for (const id of allCapabilityIds) {
-  if (!runtimeContent.includes(id)) {
-    throw new Error(
-      `dist/plugin.cjs is missing capability id "${id}". ` +
-        `Check that src/plugin.ts registers it under setup().`
-    );
+if (manifest.runtime?.nodeEntry !== undefined) {
+  const require = createRequire(import.meta.url);
+  const exported = require(path.join(projectRoot, manifest.runtime.nodeEntry));
+  // The Host's bridge accepts `module.exports = plugin` or a `default` export.
+  const plugin = exported?.default !== null && typeof exported?.default === "object" ? exported.default : exported;
+  const registry = typeof plugin?.setup === "function" ? await plugin.setup(launchContext()) : plugin;
+  if (registry === null || typeof registry !== "object") {
+    problems.push(`${manifest.runtime.nodeEntry} does not export definePlugin(...)`);
+  } else {
+    compareHandlers("detectors", manifest.detectors, registry.detectors);
+    compareHandlers("actions", manifest.actions, registry.actions);
   }
 }
 
-// ── 2. UI bundles ────────────────────────────────────────────────────────────
+// ── 2. Page references ───────────────────────────────────────────────────────
 
-async function verifyUIBundle(kind, id) {
-  const base = `dist/ui/${kind}/${id}`;
-  const htmlPath = path.resolve(projectRoot, base, "index.html");
-  const jsPath = path.resolve(projectRoot, base, "index.js");
-  const cssPath = path.resolve(projectRoot, base, "index.css");
+const REFERENCE = /\s(?:src|href)\s*=\s*["']([^"']*)["']/gi;
 
-  const html = await tryRead(htmlPath);
-  if (html === null) throw new Error(`Missing: ${base}/index.html`);
-
-  if ((await tryRead(jsPath)) === null) throw new Error(`Missing: ${base}/index.js`);
-  if ((await tryRead(cssPath)) === null) throw new Error(`Missing: ${base}/index.css`);
-
-  if (!html.includes("./index.js") || !html.includes("./index.css")) {
-    throw new Error(
-      `${base}/index.html must reference page-local built assets ` +
-        `(./index.js and ./index.css).`
-    );
+async function checkPage(page) {
+  const pagePath = path.join(projectRoot, page);
+  const html = await readFile(pagePath, "utf8");
+  for (const [, reference] of html.matchAll(REFERENCE)) {
+    if (reference === "" || reference.startsWith("#")) {
+      continue;
+    }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(reference) || reference.startsWith("/")) {
+      problems.push(`${page} references "${reference}"; reference plugin files by a path relative to the page`);
+      continue;
+    }
+    const target = path.resolve(path.dirname(pagePath), reference.split(/[?#]/)[0]);
+    if (path.relative(projectRoot, target).startsWith("..")) {
+      problems.push(`${page} references "${reference}", which is outside the plugin`);
+      continue;
+    }
+    try {
+      await access(target);
+    } catch {
+      problems.push(`${page} references "${reference}", which the build did not produce`);
+    }
   }
-  if (html.includes('src="/') || html.includes('href="/')) {
-    throw new Error(
-      `${base}/index.html must not contain absolute local asset references ` +
-        `(src="/" or href="/").`
-    );
+}
+
+for (const page of new Set((manifest.renderers ?? []).map((renderer) => renderer.page))) {
+  await checkPage(page);
+}
+
+if (problems.length > 0) {
+  for (const problem of problems) {
+    console.error(`verify-build: ${problem}`);
   }
+  process.exit(1);
 }
-
-for (const renderer of renderers) {
-  await verifyUIBundle("renderers", renderer.id);
-}
-for (const action of actionsWithUI) {
-  await verifyUIBundle("actions", action.id);
-}
-
-// ── Done ─────────────────────────────────────────────────────────────────────
-
 console.log("Build verification passed.");

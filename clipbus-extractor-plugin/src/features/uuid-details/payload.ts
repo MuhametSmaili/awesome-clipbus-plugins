@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.extractor.uuid" as const;
 
@@ -138,39 +138,19 @@ export function createUuidPayload(input: unknown): UuidPayload | null {
 }
 
 /**
- * Decode and validate a payloadJson string.
+ * Decode a structured payload or a serialized payload.
  * Returns null for missing or malformed data.
  */
 export function decodeUuidPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): UuidPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (p.kind !== "uuid_details") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as { kind?: string };
+    if (!p || typeof p !== "object" || p.kind !== "uuid_details") return null;
     return p as UuidPayload;
   } catch {
     return null;
   }
 }
 
-/**
- * Build a detector artifact from an input object.
- * Returns null when content is not a single valid UUID.
- */
-export function buildUuidArtifact(
-  input: unknown
-): PluginDetectorArtifact | null {
-  const payload = createUuidPayload(input);
-  if (!payload) return null;
-
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "extractor",
-      searchText: `uuid ${payload.canonical} v${payload.uuidVersion}`,
-      label: "UUID",
-    },
-  };
-}
+export const attachment = defineAttachment<UuidPayload>(ATTACHMENT_TYPE);

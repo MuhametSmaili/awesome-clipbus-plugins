@@ -8,32 +8,33 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "../..");
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, "manifest.json"), "utf8"));
 
-const sampleItem = { id: "item-1", type: "text", tags: [], sourceAppID: "com.example.app" };
+const { itemSnapshot } = require("../support/plugin.cjs");
+const sampleItem = itemSnapshot("text");
 
 function textInput(text) {
-  return { item: sampleItem, content: { kind: "text", text }, attachments: [] };
+  return { item: sampleItem, content: { kind: "text", text }, trigger: "copy" };
 }
 
 // ── Manifest contract ─────────────────────────────────────────────────────────
 
 test("manifest declares cron-detector and cron-renderer", () => {
   assert.ok(manifest.detectors.map((d) => d.id).includes("cron-detector"));
-  assert.ok(manifest.attachmentRenderers.map((r) => r.id).includes("cron-renderer"));
+  assert.ok(manifest.renderers.map((r) => r.id).includes("cron-renderer"));
 });
 
-test("cron-renderer uiEntry references renderers/ path", () => {
-  const r = manifest.attachmentRenderers.find((x) => x.id === "cron-renderer");
-  assert.ok(r.uiEntry.startsWith("renderers/"), `unexpected uiEntry: ${r.uiEntry}`);
+test("cron-renderer page references built renderers/ path", () => {
+  const r = manifest.renderers.find((x) => x.id === "cron-renderer");
+  assert.ok(r.page.startsWith("dist/ui/renderers/"), `unexpected page: ${r.page}`);
 });
 
 // ── Detector / payload ────────────────────────────────────────────────────────
 
 test("detect '30 9 * * 1-5' returns 5 fields", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  const artifact = buildCronArtifact(textInput("30 9 * * 1-5"));
-  assert.ok(artifact, "should detect valid cron expression");
-  assert.equal(artifact.attachmentType, "plugin.cron.schedule");
-  const payload = JSON.parse(artifact.payloadJson);
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  const payload = createCronPayload(textInput("30 9 * * 1-5"));
+  assert.ok(payload, "should detect valid cron expression");
+  const { attachment } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  assert.equal(attachment.type, "plugin.cron.schedule");
   assert.equal(payload.kind, "cron_preview");
   assert.equal(payload.fields.length, 5);
 });
@@ -50,10 +51,9 @@ test("weekday field description for '1-5' contains English weekday names", () =>
 });
 
 test("detect '*/15 * * * *' passes", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  const artifact = buildCronArtifact(textInput("*/15 * * * *"));
-  assert.ok(artifact, "*/15 * * * * should be detected");
-  const payload = JSON.parse(artifact.payloadJson);
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  const payload = createCronPayload(textInput("*/15 * * * *"));
+  assert.ok(payload, "*/15 * * * * should be detected");
   assert.equal(payload.expression, "*/15 * * * *");
 });
 
@@ -65,23 +65,23 @@ test("minute field description for '*/15' contains '15'", () => {
 });
 
 test("rejects 'hello world foo bar baz' — non-cron plain text", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  assert.equal(buildCronArtifact(textInput("hello world foo bar baz")), null);
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  assert.equal(createCronPayload(textInput("hello world foo bar baz")), null);
 });
 
 test("rejects 4-field expression '1 2 3 4'", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  assert.equal(buildCronArtifact(textInput("1 2 3 4")), null);
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  assert.equal(createCronPayload(textInput("1 2 3 4")), null);
 });
 
 test("rejects out-of-range minute '99 9 * * *'", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  assert.equal(buildCronArtifact(textInput("99 9 * * *")), null);
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  assert.equal(createCronPayload(textInput("99 9 * * *")), null);
 });
 
 test("rejects pure-number expression '1 2 3 4 5' (guard: no special chars)", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  assert.equal(buildCronArtifact(textInput("1 2 3 4 5")), null);
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  assert.equal(createCronPayload(textInput("1 2 3 4 5")), null);
 });
 
 test("decodeCronPayload returns null for bad JSON", () => {
@@ -92,65 +92,42 @@ test("decodeCronPayload returns null for bad JSON", () => {
   assert.equal(decodeCronPayload(undefined), null);
 });
 
-// ── Renderer ──────────────────────────────────────────────────────────────────
+// ── Card data ─────────────────────────────────────────────────────────────────
 
-test("renderer returns shouldDisplay:false for bad payload", async () => {
-  const { createCronRenderer } = require(path.resolve(root, "src/features/cron-renderer/renderer.ts"));
-  const result = await createCronRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "" },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.cron",
-      attachmentType: "plugin.cron.schedule",
-      attachmentKey: "primary",
-      payloadJson: "not-valid-json",
-    },
-  });
-  assert.equal(result.shouldDisplay, false);
+test("renderer defaults preserve the schedule title and tint", () => {
+  const renderer = manifest.renderers.find((entry) => entry.id === "cron-renderer");
+  assert.equal(renderer.title, "Cron Schedule");
+  assert.equal(renderer.tint, "#B45309");
+  assert.deepEqual(renderer.height, { min: 120, max: 560 });
 });
 
-test("renderer returns a displayName for a valid payload", async () => {
-  const { createCronRenderer } = require(path.resolve(root, "src/features/cron-renderer/renderer.ts"));
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  const artifact = buildCronArtifact(textInput("0 9 * * 1-5"));
-  const result = await createCronRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "0 9 * * 1-5" },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.cron",
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, "displayName should be set");
-  assert.notEqual(result.shouldDisplay, false);
+test("decodeCronPayload accepts the structured card payload and JSON domain fixtures", () => {
+  const { createCronPayload, decodeCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  const payload = createCronPayload(textInput("0 9 * * 1-5"));
+  assert.ok(payload);
+  assert.deepEqual(decodeCronPayload(payload), payload);
+  assert.deepEqual(decodeCronPayload(JSON.stringify(payload)), payload);
 });
 
 // ── Extra validations ─────────────────────────────────────────────────────────
 
 test("accepts named weekday range 'MON-FRI'", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  const artifact = buildCronArtifact(textInput("0 8 * * MON-FRI"));
-  assert.ok(artifact, "0 8 * * MON-FRI should be detected");
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  const payload = createCronPayload(textInput("0 8 * * MON-FRI"));
+  assert.ok(payload, "0 8 * * MON-FRI should be detected");
 });
 
 test("accepts named month 'JAN-MAR'", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  const artifact = buildCronArtifact(textInput("0 0 1 JAN-MAR *"));
-  assert.ok(artifact, "0 0 1 JAN-MAR * should be detected");
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  const payload = createCronPayload(textInput("0 0 1 JAN-MAR *"));
+  assert.ok(payload, "0 0 1 JAN-MAR * should be detected");
 });
 
 test("rejects image content kind", () => {
-  const { buildCronArtifact } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
-  const result = buildCronArtifact({
+  const { createCronPayload } = require(path.resolve(root, "src/features/cron-renderer/payload.ts"));
+  const result = createCronPayload({
     item: sampleItem,
     content: { kind: "image", width: 10, height: 10, format: "png", bytes: 0 },
-    attachments: [],
   });
   assert.equal(result, null);
 });

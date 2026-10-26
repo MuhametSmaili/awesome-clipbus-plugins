@@ -44,6 +44,8 @@ const DENY_EXACT = new Set([
   // Used only by template demo features; production plugins keep feature-local helpers.
   "src/shared/debug.ts",
   "src/shared/display.ts",
+  "src/shared/digest.ts", // hashing used only by template demo features
+  "tests/support/png.cjs", // PNG decoder for template's swatch tests
   ".gitignore",
   ".DS_Store",
 ]);
@@ -60,12 +62,13 @@ function git(cwd, args) {
 }
 
 function trackedFiles(repoRoot, subdir) {
-  const out = git(repoRoot, ["ls-files", "-z", subdir]);
+  const out = git(repoRoot, ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", subdir]);
   const prefix = subdir.replace(/\/?$/, "/");
-  return out
+  return [...new Set(out
     .split("\0")
     .filter(Boolean)
-    .map((p) => (p.startsWith(prefix) ? p.slice(prefix.length) : p));
+    .filter((p) => existsSync(path.join(repoRoot, p)))
+    .map((p) => (p.startsWith(prefix) ? p.slice(prefix.length) : p)))];
 }
 
 function listPlugins(repoRoot) {
@@ -73,7 +76,7 @@ function listPlugins(repoRoot) {
   const dirs = new Set();
   for (const p of out.split("\0").filter(Boolean)) {
     const dir = p.split("/")[0];
-    if (/^clipbus-.+-plugin$/.test(dir)) dirs.add(dir);
+    if (/^clipbus-.+-plugin$/.test(dir) && existsSync(path.join(repoRoot, p)) && existsSync(path.join(repoRoot, dir, "package.json"))) dirs.add(dir);
   }
   return [...dirs].sort();
 }
@@ -162,21 +165,24 @@ function main() {
     if (JSON.stringify(pkg.scripts ?? {}) !== tplScripts) {
       issues.push({ check: "package.json", plugin, file: "scripts", kind: "scripts-mismatch" });
     }
+    const manifest = readJSON(path.join(repoRoot, plugin, "manifest.json"));
+    const templateManifest = readJSON(path.join(templateAbs, "manifest.json"));
+    if (manifest?.schemaVersion !== templateManifest?.schemaVersion) {
+      issues.push({ check: "manifest", plugin, file: "schemaVersion", kind: "schema-mismatch" });
+    }
   }
 
   // Check 3 — divergent build scripts must be mutually consistent across plugins.
   for (const rel of DIVERGENT) {
-    const have = plugins.filter((p) => existsSync(path.join(repoRoot, p, rel)));
-    if (have.length < 2) continue;
-    const ref = have[0];
-    for (const plugin of have.slice(1)) {
-      if (!sameFile(path.join(repoRoot, ref, rel), path.join(repoRoot, plugin, rel))) {
+    const source = path.join(repoRoot, ".agents/skills/clipbus-plugin-generator/assets/scaffold", rel);
+    for (const plugin of plugins) {
+      if (!sameFile(source, path.join(repoRoot, plugin, rel))) {
         issues.push({
           check: "divergent",
           plugin,
           file: rel,
           kind: "plugin-drift",
-          detail: `differs from ${ref}`,
+          detail: "missing or differs from generator scaffold",
         });
       }
     }

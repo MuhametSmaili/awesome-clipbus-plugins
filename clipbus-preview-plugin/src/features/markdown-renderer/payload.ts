@@ -2,9 +2,9 @@
 // NO `import … from "node:*"` here: this file is imported by app.vue (browser) too.
 // Pure string processing only — no Node-specific globals needed.
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
-const ATTACHMENT_TYPE = "plugin.preview.markdown";
+export const ATTACHMENT_TYPE = "plugin.preview.markdown";
 
 export interface MarkdownPayload {
   kind: "markdown_preview";
@@ -14,6 +14,8 @@ export interface MarkdownPayload {
   lineCount: number;
   headingCount: number;
 }
+
+export const attachment = defineAttachment<MarkdownPayload>(ATTACHMENT_TYPE);
 
 // ── Signal detection (for detector heuristic) ────────────────────────────────
 
@@ -214,17 +216,17 @@ export function createMarkdownPayload(src: string): MarkdownPayload {
   };
 }
 
-export function decodeMarkdownPayload(payloadJson: string | null | undefined): MarkdownPayload | null {
+export function decodeMarkdownPayload(value: unknown): MarkdownPayload | null {
   try {
-    const parsed = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (parsed.kind !== "markdown_preview") return null;
+    const parsed = (typeof value === "string" ? JSON.parse(value) : value) as MarkdownPayload | null;
+    if (parsed?.kind !== "markdown_preview" || parsed.version !== 1) return null;
     return parsed as MarkdownPayload;
   } catch {
     return null;
   }
 }
 
-export function buildMarkdownArtifact(input: unknown): PluginDetectorArtifact | null {
+export function detectMarkdownPayload(input: unknown): MarkdownPayload | null {
   const content = (input as { content?: { kind?: string; text?: string } } | null)?.content;
   if (content?.kind !== "text" || typeof content.text !== "string") return null;
 
@@ -232,15 +234,5 @@ export function buildMarkdownArtifact(input: unknown): PluginDetectorArtifact | 
   if (src.length === 0) return null;
   if (countSignalKinds(src) < 2) return null;
 
-  const payload = createMarkdownPayload(src);
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "markdown",
-      searchText: src.slice(0, 200),
-      label: "Markdown",
-    },
-  };
+  return createMarkdownPayload(src);
 }

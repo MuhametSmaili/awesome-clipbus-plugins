@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "plugin": {
     "id": "plugin.decoder",
     "title": "Decoder",
@@ -10,123 +10,217 @@
     "entry": "scripts/install.mjs"
   },
   "runtime": {
-    "nodeEntry": "dist/plugin.cjs",
-    "uiRoot": "dist/ui"
+    "nodeEntry": "dist/plugin.cjs"
   },
-  "permissions": ["setAttachment"],
   "detectors": [
     {
       "id": "base64-detector",
       "title": "Base64 Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.decoder.base64"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "jwt-detector",
       "title": "JWT Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.decoder.jwt"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "data-uri-detector",
       "title": "Data URI Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.decoder.datauri"]
-    }
-  ],
-  "attachmentRenderers": [
-    {
-      "id": "base64-renderer",
-      "title": "Base64 Decode",
-      "attachmentType": "plugin.decoder.base64",
-      "height": { "min": 120, "max": 320 },
-      "uiEntry": "renderers/base64-renderer/index.html"
-    },
-    {
-      "id": "jwt-renderer",
-      "title": "JWT Parse",
-      "attachmentType": "plugin.decoder.jwt",
-      "height": { "min": 140, "max": 440 },
-      "uiEntry": "renderers/jwt-renderer/index.html"
-    },
-    {
-      "id": "data-uri",
-      "title": "Data URI",
-      "attachmentType": "plugin.decoder.datauri",
-      "height": { "min": 120, "max": 320 },
-      "uiEntry": "renderers/data-uri/index.html"
+      "inputKinds": [
+        "text"
+      ]
     }
   ],
   "actions": [
     {
       "id": "url-encode",
       "title": "URL Encode",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["url", "percent", "encode", "escape"]
+      "keywords": [
+        "url",
+        "percent",
+        "encode",
+        "escape"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "url-decode",
       "title": "URL Decode",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["url", "percent", "decode", "unescape"]
+      "keywords": [
+        "url",
+        "percent",
+        "decode",
+        "unescape"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "html-encode",
       "title": "HTML Encode",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["html", "entity", "encode", "escape"]
+      "keywords": [
+        "html",
+        "entity",
+        "encode",
+        "escape"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "html-decode",
       "title": "HTML Decode",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["html", "entity", "decode", "unescape"]
+      "keywords": [
+        "html",
+        "entity",
+        "decode",
+        "unescape"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "base64-encode",
       "title": "Base64 Encode",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["base64", "encode"]
+      "keywords": [
+        "base64",
+        "encode"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "base64-decode",
       "title": "Base64 Decode",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["base64", "decode"]
+      "keywords": [
+        "base64",
+        "decode"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "unicode-escape",
       "title": "Unicode Escape",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["unicode", "escape", "encode"]
+      "keywords": [
+        "unicode",
+        "escape",
+        "encode"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "unicode-unescape",
       "title": "Unicode Unescape",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["unicode", "unescape", "decode"]
+      "keywords": [
+        "unicode",
+        "unescape",
+        "decode"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "json-escape",
       "title": "JSON Escape",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["json", "escape", "encode"]
+      "keywords": [
+        "json",
+        "escape",
+        "encode"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "json-unescape",
       "title": "JSON Unescape",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["json", "unescape", "decode"]
+      "keywords": [
+        "json",
+        "unescape",
+        "decode"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     }
-  ]
+  ],
+  "renderers": [
+    {
+      "id": "base64-renderer",
+      "title": "Base64 Decode",
+      "attachmentType": "plugin.decoder.base64",
+      "height": {
+        "min": 120,
+        "max": 320
+      },
+      "page": "dist/ui/renderers/base64-renderer/index.html",
+      "tint": "#0F766E",
+      "buttons": [
+        {
+          "id": "copy",
+          "title": "Copy Decoded Result"
+        }
+      ]
+    },
+    {
+      "id": "jwt-renderer",
+      "title": "JWT Decoded",
+      "attachmentType": "plugin.decoder.jwt",
+      "height": {
+        "min": 140,
+        "max": 440
+      },
+      "page": "dist/ui/renderers/jwt-renderer/index.html",
+      "tint": "#7C3AED",
+      "buttons": [
+        {
+          "id": "copy",
+          "title": "Copy Payload"
+        }
+      ]
+    },
+    {
+      "id": "data-uri",
+      "title": "Data URI",
+      "attachmentType": "plugin.decoder.datauri",
+      "height": {
+        "min": 120,
+        "max": 320
+      },
+      "page": "dist/ui/renderers/data-uri/index.html",
+      "tint": "#0369A1",
+      "buttons": [
+        {
+          "id": "copy",
+          "title": "Copy Decoded"
+        }
+      ]
+    }
+  ],
+  "writes": {
+    "attachmentTypes": [
+      "plugin.decoder.base64",
+      "plugin.decoder.jwt",
+      "plugin.decoder.datauri"
+    ],
+    "searchScopes": [
+      "decoder",
+      "jwt"
+    ]
+  }
 }

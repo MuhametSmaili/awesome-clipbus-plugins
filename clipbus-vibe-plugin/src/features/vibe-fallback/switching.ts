@@ -29,8 +29,8 @@ export function resolveAnimationList(setting: unknown, all: AnimationMeta[]): An
 
 /** One native button per animation in the (already resolved) list; all enabled
  *  so any can be tapped to switch. */
-export function buildButtons(list: AnimationMeta[]): { id: string; title: string; isEnabled: boolean }[] {
-  return list.map((m) => ({ id: m.id, title: m.label, isEnabled: true }));
+export function buildButtons(list: AnimationMeta[]): { id: string; title: string; enabled: boolean }[] {
+  return list.map((m) => ({ id: m.id, title: m.label, enabled: true }));
 }
 
 /** Index to switch to when a button is clicked; unknown id -> keep current. */

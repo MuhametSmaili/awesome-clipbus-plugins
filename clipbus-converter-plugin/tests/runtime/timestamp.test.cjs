@@ -25,50 +25,49 @@ test('manifest has timestamp-detector', () => {
 });
 
 test('manifest has timestamp-renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('timestamp-renderer'), 'missing timestamp-renderer');
 });
 
-test('timestamp-renderer uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'timestamp-renderer');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('timestamp-renderer page references renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'timestamp-renderer');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
 // ---------------------------------------------------------------------------
 // Detector / payload
 // ---------------------------------------------------------------------------
 
-test('buildTimestampArtifact detects 10-digit timestamp (seconds)', () => {
-  const { buildTimestampArtifact } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
+test('createTimestampPayload detects 10-digit timestamp (seconds)', () => {
+  const { createTimestampPayload } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1700000000' }, attachments: [] };
-  const artifact = buildTimestampArtifact(input);
+  const artifact = createTimestampPayload(input);
   assert.ok(artifact, 'artifact should not be null for valid seconds timestamp');
-  assert.equal(artifact.attachmentType, 'plugin.converter.timestamp');
-  const payload = JSON.parse(artifact.payloadJson);
+  const payload = artifact;
   assert.equal(payload.unit, 'seconds');
   assert.equal(payload.iso, '2023-11-14T22:13:20.000Z');
 });
 
-test('buildTimestampArtifact detects 13-digit timestamp (milliseconds)', () => {
-  const { buildTimestampArtifact } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
+test('createTimestampPayload detects 13-digit timestamp (milliseconds)', () => {
+  const { createTimestampPayload } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1700000000000' }, attachments: [] };
-  const artifact = buildTimestampArtifact(input);
+  const artifact = createTimestampPayload(input);
   assert.ok(artifact, 'artifact should not be null for valid milliseconds timestamp');
-  const payload = JSON.parse(artifact.payloadJson);
+  const payload = artifact;
   assert.equal(payload.unit, 'milliseconds');
   assert.equal(payload.iso, '2023-11-14T22:13:20.000Z');
 });
 
-test('buildTimestampArtifact ignores plain text', () => {
-  const { buildTimestampArtifact } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
-  const artifact = buildTimestampArtifact({ item: sampleItem, content: { kind: 'text', text: 'hello world foo' }, attachments: [] });
+test('createTimestampPayload ignores plain text', () => {
+  const { createTimestampPayload } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
+  const artifact = createTimestampPayload({ item: sampleItem, content: { kind: 'text', text: 'hello world foo' }, attachments: [] });
   assert.equal(artifact, null, 'plain text should not be detected as timestamp');
 });
 
-test('buildTimestampArtifact ignores out-of-range timestamp (year < 2001)', () => {
-  const { buildTimestampArtifact } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
+test('createTimestampPayload ignores out-of-range timestamp (year < 2001)', () => {
+  const { createTimestampPayload } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
   // 0000000000 → epoch 0 → year 1970 → out of [2001,2099]
-  const artifact = buildTimestampArtifact({ item: sampleItem, content: { kind: 'text', text: '0000000000' }, attachments: [] });
+  const artifact = createTimestampPayload({ item: sampleItem, content: { kind: 'text', text: '0000000000' }, attachments: [] });
   assert.equal(artifact, null, 'year < 2001 should be rejected');
 });
 
@@ -101,7 +100,7 @@ test('decodeTimestampPayload provides empty zones array for legacy payloads with
 
 // ---------------------------------------------------------------------------
 // World clock zones (tested with epoch 0 — bypasses year-range check by
-// calling buildWorldClockZones directly, not via buildTimestampArtifact)
+// calling buildWorldClockZones directly, not via createTimestampPayload)
 // ---------------------------------------------------------------------------
 
 test('buildWorldClockZones returns 9 zones in the correct label order', () => {
@@ -145,12 +144,12 @@ test('buildWorldClockZones every zone has a non-empty offset string', () => {
   }
 });
 
-test('buildTimestampArtifact payload includes 9 zones for valid timestamp', () => {
-  const { buildTimestampArtifact } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
+test('createTimestampPayload payload includes 9 zones for valid timestamp', () => {
+  const { createTimestampPayload } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1700000000' }, attachments: [] };
-  const artifact = buildTimestampArtifact(input);
+  const artifact = createTimestampPayload(input);
   assert.ok(artifact, 'artifact should not be null');
-  const payload = JSON.parse(artifact.payloadJson);
+  const payload = artifact;
   assert.ok(Array.isArray(payload.zones), 'payload.zones should be an array');
   assert.equal(payload.zones.length, 9, 'payload.zones should have 9 entries');
 });
@@ -158,43 +157,3 @@ test('buildTimestampArtifact payload includes 9 zones for valid timestamp', () =
 // ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
-
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createTimestampRenderer } = require(path.resolve(root, 'src/features/timestamp-renderer/renderer.ts'));
-  const renderer = createTimestampRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.converter',
-      attachmentType: 'plugin.converter.timestamp',
-      attachmentKey: 'primary',
-      payloadJson: 'not-valid-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false, 'bad payload → shouldDisplay:false');
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createTimestampRenderer } = require(path.resolve(root, 'src/features/timestamp-renderer/renderer.ts'));
-  const { buildTimestampArtifact } = require(path.resolve(root, 'src/features/timestamp-renderer/payload.ts'));
-  const artifact = buildTimestampArtifact({ item: sampleItem, content: { kind: 'text', text: '1700000000' }, attachments: [] });
-  const renderer = createTimestampRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '1700000000' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.converter',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
-});
-

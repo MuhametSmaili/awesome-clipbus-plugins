@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeTemperaturePayload } from "./payload";
+import { useCard } from "../../shared/composables/useCard";
+import { attachment, decodeTemperaturePayload } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the dev preview workbench document.body is the whole page, so without a target
 // autoFit never converges and spams setHeight every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const card = useCard(attachment);
 const payload = computed(() =>
-  decodeTemperaturePayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeTemperaturePayload(card.attachment.value.payload)
 );
 
 const sourceDisplay = computed(() => {
@@ -38,7 +38,7 @@ const rows = computed(() => {
 });
 
 async function copy(text: string) {
-  await clipbus.clipboard.copyText({ text });
+  await ctx.system.copyText({ text });
 }
 
 let stopAutoFit: (() => void) | null = null;

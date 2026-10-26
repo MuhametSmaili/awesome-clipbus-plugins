@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "plugin": {
     "id": "plugin.text",
     "title": "Text Tools",
@@ -10,75 +10,68 @@
     "entry": "scripts/install.mjs"
   },
   "runtime": {
-    "nodeEntry": "dist/plugin.cjs",
-    "uiRoot": "dist/ui"
+    "nodeEntry": "dist/plugin.cjs"
   },
-  "permissions": [],
   "detectors": [],
-  "attachmentRenderers": [],
+  "renderers": [],
   "actions": [
     {
       "id": "text-sort",
       "title": "Sort Lines",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["sort", "order", "lines"]
     },
     {
       "id": "text-dedup",
       "title": "Remove Duplicate Lines",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["dedup", "unique", "duplicates"]
     },
     {
       "id": "text-trim",
       "title": "Tidy Whitespace",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["trim", "whitespace", "spaces"]
     },
     {
       "id": "text-strip-ansi",
       "title": "Strip ANSI Codes",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["ansi", "escape", "terminal", "color", "strip"]
     },
     {
       "id": "text-reverse-lines",
       "title": "Reverse Lines",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["reverse", "lines", "flip"]
     },
     {
       "id": "text-reverse-characters",
       "title": "Reverse Characters",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["reverse", "characters", "text", "flip"]
     },
     {
       "id": "text-sort-characters",
       "title": "Sort Characters",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["sort", "characters", "order"]
     },
     {
       "id": "text-pretty-json",
       "title": "Pretty JSON",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["json", "pretty", "format", "indent"]
     },
     {
       "id": "text-minify-json",
       "title": "Minify JSON",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
+      "inputKinds": ["text"],
       "keywords": ["json", "minify", "compact"]
     }
-  ]
+  ],
+  "writes": {
+    "attachmentTypes": [],
+    "searchScopes": []
+  }
 }

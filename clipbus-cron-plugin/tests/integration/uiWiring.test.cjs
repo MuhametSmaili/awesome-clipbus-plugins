@@ -8,11 +8,7 @@ const FEATURES = path.join(ROOT, "src", "features");
 const HOST_MAIN = path.join(ROOT, "src", "preview", "preview-host", "main.ts");
 const OLD_SHELL = path.join(ROOT, "src", "preview", "PreviewShellApp.vue");
 
-// Renderers intentionally using a fixed numeric manifest height (no autoFit needed).
-// PER-PLUGIN: e.g. preview → ["color-swatch","gradient-swatch"]; else [].
-const FIXED_HEIGHT = new Set([]);
-// PER-PLUGIN: false only for plugins with no renderer AND no draft action (text).
-const HAS_PREVIEWABLE_UI = true;
+const manifest = require("../../manifest.json");
 
 test("preview workbench uses the SDK createPreviewWorkbench (not a hand-rolled shell)", () => {
   assert.ok(!fs.existsSync(OLD_SHELL),
@@ -20,20 +16,17 @@ test("preview workbench uses the SDK createPreviewWorkbench (not a hand-rolled s
   const src = fs.readFileSync(HOST_MAIN, "utf8");
   assert.ok(src.includes("createPreviewWorkbench"),
     "preview-host/main.ts must call createPreviewWorkbench from @clipbus/plugin-sdk/preview");
-  if (HAS_PREVIEWABLE_UI) {
-    assert.ok(/from ["']\.\.\/\.\.\/features\//.test(src),
-      "preview-host/main.ts imports no real feature component");
-  }
+  assert.ok(/from ["']\.\.\/\.\.\/features\/cron-renderer\/app\.vue["']/.test(src),
+    "preview-host/main.ts must import the real Cron card");
 });
 
 test("every auto/bounded renderer calls autoFit (no clipped cards)", () => {
-  if (!fs.existsSync(FEATURES)) return;
-  for (const dir of fs.readdirSync(FEATURES)) {
+  for (const renderer of manifest.renderers) {
+    const dir = renderer.id;
     const appVue = path.join(FEATURES, dir, "app.vue");
-    if (!fs.existsSync(appVue)) continue;
     const src = fs.readFileSync(appVue, "utf8");
-    if (!src.includes("clipbus.item.attachment")) continue; // not a renderer
-    if (FIXED_HEIGHT.has(dir)) continue;
+    assert.ok(src.includes("useCard(attachment)"),
+      `renderer "${dir}" must consume the V2 startup card`);
     assert.ok(/autoFit\(|setHeight\(/.test(src),
       `renderer "${dir}" never calls autoFit/setHeight — card height will clip`);
     if (/autoFit\(/.test(src)) {

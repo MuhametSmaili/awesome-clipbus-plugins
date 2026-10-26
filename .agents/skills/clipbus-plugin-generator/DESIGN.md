@@ -1,7 +1,7 @@
 # 设计文档：clipbus-plugin-generator skill
 
 > 日期：2026-06-26 · 状态：已与用户敲定，待实现
-> 通过 superpowers:brainstorming 流程产出。本文是该 skill 的权威设计（spec），实现以它为准。
+> 通过 superpowers:brainstorming 流程产出。本文记录工作流决策；接口以已安装 SDK API.md 为准。
 >
 > **修订 2026-06-27**：归属判断由"按 `topic-ideas.md` 类别词表"改为 **survey 驱动**（看现有插件真实职责）；`topic-ideas.md` 降级为纯**灵感库**、不再作归类约束；全自主模式新增"新建硬门控"（列候选宿主 + 落选理由）；新增「文案风格统一」规范与收尾措辞自检。详见阶段 2。
 
@@ -18,7 +18,7 @@
 | 1 | 自主度 | **双模式带开关**：默认"先提选题再生成"（含归属决策，等用户确认）；一句话切"全自主一条龙"。用户给了选题则直接用。 |
 | 2 | 完成度 | **完整实现 + 必须构建通过**。产出真实逻辑，修到验证全绿才算完成。 |
 | 3 | 避重/归属 | **survey 驱动**（按现有插件真实职责判合并/新建；`topic-ideas.md` 仅作灵感、**非约束**）。每个插件 README 记录自身功能；根目录 `README.md`（英文）+ `README_zh.md`（中文）做索引。skill 开跑先读、收尾**中英双写**更新。 |
-| 4 | 能力组合 | **按需覆盖**，不强行铺满。**要展示的附件必配 renderer**（detector 只做 `searchProjection` 搜索投影、不展示卡片时无需 renderer）；**auto-run action 仅当能提供 renderer 给不了的东西时才加**（renderer 已展示+一键复制某值时，禁止再加返回同值的冗余 copy-action）；draft 仅当需要用户输入。 |
+| 4 | 能力组合 | **按需覆盖**，不强行铺满。**要展示的附件必配 renderer**（detector 只写搜索扩展、不展示卡片时无需 renderer）；**auto-run action 仅当能提供 renderer 给不了的东西时才加**（renderer 已展示+一键复制某值时，禁止再加返回同值的冗余 copy-action）。 |
 | 5 | 验证门槛 | **`npm run verify` 全绿**（typecheck+lint+build+verify-build + 精简冒烟测试）。模板里写死 id 的机关与测试改写成匹配新插件。 |
 | 6 | skill 结构 | **工作流 + 精简脚本 + 通用脚手架**（方案 A）。 |
 | 7 | 落地位置 | 项目内 `.claude/skills/clipbus-plugin-generator/`，随仓库版本化。 |
@@ -61,7 +61,7 @@
 
 ### 阶段 4 · 实现能力（实用优先）
 - 按选题需要选扩展点；**要展示的附件必配 renderer**（只做搜索投影的 detector 除外）。
-- 每个 feature：`payload.ts`（单一真相源 create/decode/buildArtifact + version）→ `detector.ts` / `renderer.ts` / `action.ts` → `app.vue` + `main.ts` + `index.html`（renderer/draft 才有 UI）→ 一个 preview scenario。
+- 每个 feature：`payload.ts`（类型/契约/create/decode/version）→ Runtime detector/Action 函数 → renderer 的 `app.vue` + `main.ts` + `index.html`→ 一个 preview scenario。
 - **目录名 === manifest 能力 id**（见通用约定）；同步 `manifest.json` 与 `src/plugin.ts` 注册。
 - 视觉：只用 `var(--clipbus-*, 回退)` 主题 token，适配明暗，版式干净。
 - 写**精简冒烟测试**（见 authoring-guide）。
@@ -76,37 +76,20 @@
 ### 阶段 7 · 汇报
 - 列出：插件目录、新增/变更能力、验证结果（命令 + 结论）、索引更新。
 
-## 通用脚手架（scaffold.mjs 的产物）
+## 通用脚手架与契约
 
-从 `template-plugin` 复制后做以下**genericize**，目的是消除模板里写死 `template/gallery` id 的脆弱点，让任意新插件天然能过构建：
+scaffold.mjs 从模板整体复制，排除依赖、构建产物、内部 git 和缓存；删除全部演示 feature、演示测试以及只用于演示的 shared/PNG 工具。
+保留配置、base.css、useCard、通用测试 harness、Runtime 构建与安装脚本，并替换为 generator 的通用 UI 构建和校验资产。
+生成 schema 5 空能力清单、函数式 definePlugin、V2 卡片 scenario 入口与构建产物接线测试。renderer page 从 manifest 推导。
+业务实现与实际预览由后续阶段补齐，不能用占位组件交付。
 
-1. **删除** `src/features/capability-gallery/`、template 示例 feature（preview-renderer/expanded-renderer/auto-action）、以及 `tests/` 里写死 id 的测试。**保留** `scripts/`、`src/shared/`（display/debug/base.css/useTopicRef 通用）、`tsconfig.json`/`vite.config.mjs`/`eslint.config.mjs`/`env.d.ts`、最小预览工作台 `src/preview/`。
-2. **统一约定：feature 目录名 === manifest 能力 id**。据此重写：
-   - `scripts/build-ui.mjs`：扫描 `src/features/<dir>`（含 `main.ts`+`index.html` 的），page 名 = `<dir>`，kind 通过**读 `manifest.json`** 判断该 id 属 `attachmentRenderers` 还是 `actions`。**删除** `template-` 前缀逻辑、`preview-renderer→template-renderer` 特例、`NESTED_OVERRIDES`。
-   - `scripts/verify-build.mjs`：**读 `manifest.json`** 推导期望产物——对每个有 `nodeEntry` 的运行时检查 `dist/plugin.cjs` 含各能力 id；对每个带 `uiEntry` 的 renderer/action 检查 `dist/ui/{renderers,actions}/<id>/{index.html,js,css}` 存在且 HTML 引用页内相对资源。**不再硬编码** `template-*`/`gallery-*`。
-3. `package.json` name → `@clipbus/{topic}-plugin`。
-4. `manifest.json` → 留空能力骨架：`plugin.id="plugin.{topic}"`、`title` 人类可读、`permissions=[]`（按需加）、`detectors/attachmentRenderers/actions=[]`。attachmentType 约定 `plugin.{topic}.{feature}`。
-5. 预览工作台保留为最小可用骨架；feature 实现时各自补 scenario，保证 `npm run dev` 与 `vue-tsc` 都不报残留引用。
+当前架构见 references/architecture.md，实现范式见 references/authoring-guide.md。
+Runtime 的 detector/Action id 与 manifest 一致；卡片不注册 Node handler。
+附件类型和搜索 scope 必须声明 writes；输入只有 text/image。只为搜索或交互状态存数据时不必添加 renderer。
+按需要组合贡献，避免与卡片复制按钮冗余的 Action；Action 没有表单 UI。
 
-> scaffold.mjs 只产出"能 build 的空插件骨架"；真实能力逻辑与 UI 由模型在阶段 4 写。
-
-## 接线不变量（实现必须遵守）
-
-- **三处 id 对齐**：`manifest` 能力 `id` === `src/plugin.ts` `setup()` 注册 key === `src/features/<dir>` 目录名（也即 UI 产物目录）。
-- **要展示的附件 ⇒ 必配 renderer**：detector 的 artifact 有附件（`attachmentType`+`payloadJson`，要展示成卡片必配同型 renderer）与可选搜索投影（`searchProjection`，喂搜索索引、不展示、无需 renderer）两面；只做搜索投影的 detector 不需要 renderer。
-- **输入仅三种 kind**：`text` / `image` / `path_reference`（snake_case）。content envelope 扁平。
-- **UI 主题 token**：`var(--clipbus-*, 回退)`，禁裸 hex。
-- **API.md 为准**：能力签名以已安装 SDK 的 `node_modules/@clipbus/plugin-sdk/API.md` 为准；不改 node_modules 内 SDK。
-
-## 测试范式（精简冒烟，写进 authoring-guide）
-
-每个新插件至少：
-1. manifest ↔ `plugin.ts` 注册对齐（每个声明的能力 id 都有 handler，反之亦然）。
-2. 每个 detector：对一条样例输入产出预期 `attachmentType` 的 artifact，payloadJson 可被对应 `decode*` 解析。
-3. 每个 renderer：`resolveAttachment` 对坏 payload 返回 `shouldDisplay:false`、对好 payload 返回 displayName。
-4. 每个 action：`runAutoAction`/`resolveSession` 返回预期 `resultKind`/draft 形状。
-
-测试用 `.cjs` + Node test runner，沿用模板的 `tests/setup.cjs` 与 `--experimental-strip-types` 直接 require `.ts`。
+测试保留业务向量并加载构建产物验证 ctx 写入、结果和消息。
+preview 使用各 feature 的真实 payload 与组件，并通过 SDK computeBootstrap 验证 V2 快照。
 
 ## 模型分工（遵循用户偏好）
 

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "plugin": {
     "id": "plugin.formatter",
     "title": "Formatter",
@@ -10,52 +10,95 @@
     "entry": "scripts/install.mjs"
   },
   "runtime": {
-    "nodeEntry": "dist/plugin.cjs",
-    "uiRoot": "dist/ui"
+    "nodeEntry": "dist/plugin.cjs"
   },
-  "permissions": ["setAttachment"],
   "detectors": [
     {
       "id": "json-detector",
       "title": "JSON Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.formatter.json"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "xml-detector",
       "title": "XML Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.formatter.xml"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "csv-detector",
       "title": "CSV Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.formatter.csv"]
+      "inputKinds": [
+        "text"
+      ]
     }
   ],
-  "attachmentRenderers": [
+  "actions": [],
+  "renderers": [
     {
       "id": "json-renderer",
       "title": "JSON Formatter",
       "attachmentType": "plugin.formatter.json",
-      "height": { "min": 160, "max": 480 },
-      "uiEntry": "renderers/json-renderer/index.html"
+      "height": {
+        "min": 160,
+        "max": 480
+      },
+      "page": "dist/ui/renderers/json-renderer/index.html",
+      "tint": "#7C3AED",
+      "buttons": [
+        {
+          "id": "copy",
+          "title": "Copy Pretty"
+        }
+      ]
     },
     {
       "id": "xml-renderer",
       "title": "XML Formatter",
       "attachmentType": "plugin.formatter.xml",
-      "height": { "min": 140, "max": 480 },
-      "uiEntry": "renderers/xml-renderer/index.html"
+      "height": {
+        "min": 140,
+        "max": 480
+      },
+      "page": "dist/ui/renderers/xml-renderer/index.html",
+      "tint": "#7C3AED",
+      "buttons": [
+        {
+          "id": "copy-xml",
+          "title": "Copy Formatted XML"
+        }
+      ]
     },
     {
       "id": "csv-table",
-      "title": "CSV Table",
+      "title": "CSV",
       "attachmentType": "plugin.formatter.csv",
-      "height": { "min": 160, "max": 460 },
-      "uiEntry": "renderers/csv-table/index.html"
+      "height": {
+        "min": 160,
+        "max": 460
+      },
+      "page": "dist/ui/renderers/csv-table/index.html",
+      "tint": "#0F766E",
+      "buttons": [
+        {
+          "id": "copy",
+          "title": "Copy as Markdown Table"
+        }
+      ]
     }
   ],
-  "actions": []
+  "writes": {
+    "attachmentTypes": [
+      "plugin.formatter.json",
+      "plugin.formatter.xml",
+      "plugin.formatter.csv"
+    ],
+    "searchScopes": [
+      "formatter",
+      "xml",
+      "csv"
+    ]
+  }
 }

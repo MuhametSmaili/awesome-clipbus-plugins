@@ -1,6 +1,6 @@
 # Text Tools
 
-Nine auto-run text transform actions for [Clipbus](https://clipbus.app).
+Nine text transform Actions for [Clipbus](https://clipbus.app).
 
 ## Actions
 
@@ -16,7 +16,7 @@ Nine auto-run text transform actions for [Clipbus](https://clipbus.app).
 | `text-pretty-json` | Pretty JSON | Parses valid JSON and formats it with two-space indentation. |
 | `text-minify-json` | Minify JSON | Parses valid JSON and removes insignificant whitespace. |
 
-All nine actions are `auto-run` (no UI), apply only to `text` clipboard items, and return the transformed text directly. Empty or whitespace-only input yields a "no content" result with no output; invalid JSON yields an "Invalid JSON" result.
+All nine Actions run without a UI on the current `text` value and return the transformed text directly. The plugin uses SDK 2.0.0 and protocol V2 (manifest schema 5). Empty or whitespace-only input yields a "no content" result with no output; invalid JSON yields an "Invalid JSON" result.
 
 ## Development
 

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "plugin": {
     "id": "plugin.converter",
     "title": "Converter",
@@ -10,162 +10,272 @@
     "entry": "scripts/install.mjs"
   },
   "runtime": {
-    "nodeEntry": "dist/plugin.cjs",
-    "uiRoot": "dist/ui"
+    "nodeEntry": "dist/plugin.cjs"
   },
-  "permissions": ["setAttachment"],
   "detectors": [
     {
       "id": "timestamp-detector",
       "title": "Unix Timestamp Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.converter.timestamp"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "radix-detector",
       "title": "Radix Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.converter.radix"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "duration-detector",
       "title": "Duration Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.converter.duration"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "temperature-detector",
       "title": "Temperature Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.converter.temperature"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "filesize-detector",
       "title": "Data Size Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.converter.filesize"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "chmod-detector",
       "title": "File Permission Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.converter.chmod"]
-    }
-  ],
-  "attachmentRenderers": [
-    {
-      "id": "timestamp-renderer",
-      "title": "Unix Timestamp Converter",
-      "attachmentType": "plugin.converter.timestamp",
-      "height": { "min": 140, "max": 460 },
-      "uiEntry": "renderers/timestamp-renderer/index.html"
-    },
-    {
-      "id": "radix-renderer",
-      "title": "Radix Converter",
-      "attachmentType": "plugin.converter.radix",
-      "height": { "min": 120, "max": 300 },
-      "uiEntry": "renderers/radix-renderer/index.html"
-    },
-    {
-      "id": "duration",
-      "title": "Duration",
-      "attachmentType": "plugin.converter.duration",
-      "height": { "min": 140, "max": 300 },
-      "uiEntry": "renderers/duration/index.html"
-    },
-    {
-      "id": "temperature",
-      "title": "Temperature",
-      "attachmentType": "plugin.converter.temperature",
-      "height": { "min": 140, "max": 300 },
-      "uiEntry": "renderers/temperature/index.html"
-    },
-    {
-      "id": "filesize-renderer",
-      "title": "Data Size",
-      "attachmentType": "plugin.converter.filesize",
-      "height": { "min": 180, "max": 420 },
-      "uiEntry": "renderers/filesize-renderer/index.html"
-    },
-    {
-      "id": "chmod-renderer",
-      "title": "File Permissions",
-      "attachmentType": "plugin.converter.chmod",
-      "height": { "min": 180, "max": 380 },
-      "uiEntry": "renderers/chmod-renderer/index.html"
+      "inputKinds": [
+        "text"
+      ]
     }
   ],
   "actions": [
     {
       "id": "uppercase",
       "title": "Uppercase",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["uppercase", "upper", "case"]
+      "keywords": [
+        "uppercase",
+        "upper",
+        "case"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "lowercase",
       "title": "Lowercase",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["lowercase", "lower", "case"]
+      "keywords": [
+        "lowercase",
+        "lower",
+        "case"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "camelCase",
       "title": "camelCase",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["camel", "case", "naming"]
+      "keywords": [
+        "camel",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "pascalCase",
       "title": "PascalCase",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["pascal", "case", "naming"]
+      "keywords": [
+        "pascal",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "snakeCase",
       "title": "snake_case",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["snake", "case", "naming"]
+      "keywords": [
+        "snake",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "kebabCase",
       "title": "kebab-case",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["kebab", "case", "naming"]
+      "keywords": [
+        "kebab",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "constantCase",
       "title": "CONSTANT_CASE",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["constant", "case", "naming"]
+      "keywords": [
+        "constant",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "titleCase",
       "title": "Title Case",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["title", "case", "naming"]
+      "keywords": [
+        "title",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "sentenceCase",
       "title": "Sentence case",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["sentence", "case", "naming"]
+      "keywords": [
+        "sentence",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "dotCase",
       "title": "dot.case",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run",
-      "keywords": ["dot", "case", "naming"]
+      "keywords": [
+        "dot",
+        "case",
+        "naming"
+      ],
+      "inputKinds": [
+        "text"
+      ]
     }
-  ]
+  ],
+  "renderers": [
+    {
+      "id": "timestamp-renderer",
+      "title": "Unix Timestamp Converter",
+      "attachmentType": "plugin.converter.timestamp",
+      "height": {
+        "min": 140,
+        "max": 460
+      },
+      "tint": "#0F766E",
+      "page": "dist/ui/renderers/timestamp-renderer/index.html",
+      "buttons": [
+        {
+          "id": "copy-iso",
+          "title": "Copy ISO 8601"
+        }
+      ]
+    },
+    {
+      "id": "radix-renderer",
+      "title": "Radix Converter",
+      "attachmentType": "plugin.converter.radix",
+      "height": {
+        "min": 120,
+        "max": 300
+      },
+      "tint": "#4F46E5",
+      "page": "dist/ui/renderers/radix-renderer/index.html",
+      "buttons": [
+        {
+          "id": "copy-all",
+          "title": "Copy all radix"
+        }
+      ]
+    },
+    {
+      "id": "duration",
+      "title": "Duration",
+      "attachmentType": "plugin.converter.duration",
+      "height": {
+        "min": 140,
+        "max": 300
+      },
+      "tint": "#7C3AED",
+      "page": "dist/ui/renderers/duration/index.html",
+      "buttons": [
+        {
+          "id": "copy-seconds",
+          "title": "Copy Seconds"
+        }
+      ]
+    },
+    {
+      "id": "temperature",
+      "title": "Temperature",
+      "attachmentType": "plugin.converter.temperature",
+      "height": {
+        "min": 140,
+        "max": 300
+      },
+      "tint": "#EF4444",
+      "page": "dist/ui/renderers/temperature/index.html"
+    },
+    {
+      "id": "filesize-renderer",
+      "title": "Data Size",
+      "attachmentType": "plugin.converter.filesize",
+      "height": {
+        "min": 180,
+        "max": 420
+      },
+      "tint": "#0369A1",
+      "page": "dist/ui/renderers/filesize-renderer/index.html"
+    },
+    {
+      "id": "chmod-renderer",
+      "title": "File Permissions",
+      "attachmentType": "plugin.converter.chmod",
+      "height": {
+        "min": 180,
+        "max": 380
+      },
+      "tint": "#475569",
+      "page": "dist/ui/renderers/chmod-renderer/index.html"
+    }
+  ],
+  "writes": {
+    "attachmentTypes": [
+      "plugin.converter.timestamp",
+      "plugin.converter.radix",
+      "plugin.converter.duration",
+      "plugin.converter.temperature",
+      "plugin.converter.filesize",
+      "plugin.converter.chmod"
+    ],
+    "searchScopes": [
+      "converter",
+      "radix"
+    ]
+  }
 }

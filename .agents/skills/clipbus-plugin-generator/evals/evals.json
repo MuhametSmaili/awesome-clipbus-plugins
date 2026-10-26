@@ -6,14 +6,14 @@
       "id": 1,
       "name": "given-topic-base64-decoder",
       "prompt": "在这个 clipbus 插件合集仓库里，帮我做一个能识别剪贴板里的 base64 字符串、把它解码出来展示并支持一键复制解码结果的插件。",
-      "expected_output": "新建 clipbus-decoder-plugin（plugin.id=plugin.decoder），含 base64 的 detector+renderer+auto-run action；npm run verify 全绿；README 写明功能；根 README.md 收录。",
+      "expected_output": "按 survey 归属扩展或新建 clipbus-decoder-plugin（plugin.id=plugin.decoder），含 base64 的 detector+renderer 与复制按钮；npm run verify 全绿；README 写明功能；根 README.md 收录。",
       "files": [],
       "assertions": [
         "目录 clipbus-decoder-plugin 在仓库根被创建",
         "manifest.plugin.id === plugin.decoder",
-        "至少 1 个 detector 且至少 1 个 attachmentRenderer（detector 必配 renderer）",
-        "manifest 里每个能力 id 都在 src/plugin.ts 注册",
-        "每个 UI 能力（renderer/draft）都有同名 src/features/<id> 目录含 main.ts+index.html",
+        "至少 1 个 detector 且至少 1 个 renderer（detector 必配 renderer）",
+        "manifest detector/Action id 在 Runtime 注册；renderer page 正确",
+        "每个 UI 能力（renderer）都有同名 src/features/<id> 目录含 main.ts+index.html",
         "npm run verify 退出码为 0（全绿）",
         "README.md 写明功能且提到 base64",
         "根 README.md 存在并收录该插件（含链接）",
@@ -29,8 +29,8 @@
       "assertions": [
         "在仓库根新建了一个 clipbus-{topic}-plugin 目录（topic 未与已有冲突）",
         "manifest.plugin.id 形如 plugin.{topic}",
-        "按选题需要实现了扩展点；若有 detector 则必有 renderer",
-        "manifest 每个能力 id 都在 src/plugin.ts 注册",
+        "按选题需要实现了扩展点；要展示附件则有 renderer",
+        "manifest detector/Action id 在 Runtime 注册；renderer page 正确",
         "npm run verify 退出码为 0（全绿）",
         "README.md 写明功能；根 README.md 收录该插件"
       ]
@@ -39,13 +39,13 @@
       "id": 3,
       "name": "given-topic-json-formatter",
       "prompt": "给这个合集加一个剪贴板插件：识别剪贴板里的 JSON 文本，美化格式化后展示，并能一键复制格式化结果。",
-      "expected_output": "新建 clipbus-formatter-plugin（plugin.id=plugin.formatter），含 JSON 的 detector+renderer+auto-run action；npm run verify 全绿；README + 根 README.md 更新。",
+      "expected_output": "按 survey 归属扩展或新建 clipbus-formatter-plugin（plugin.id=plugin.formatter），含 JSON 的 detector+renderer 与复制按钮；npm run verify 全绿；README + 根 README.md 更新。",
       "files": [],
       "assertions": [
         "目录 clipbus-formatter-plugin 在仓库根被创建",
         "manifest.plugin.id === plugin.formatter",
-        "至少 1 个 detector 且至少 1 个 attachmentRenderer",
-        "manifest 每个能力 id 都在 src/plugin.ts 注册",
+        "至少 1 个 detector 且至少 1 个 renderer",
+        "manifest detector/Action id 在 Runtime 注册；renderer page 正确",
         "npm run verify 退出码为 0（全绿）",
         "README.md 写明功能；根 README.md 收录该插件"
       ]

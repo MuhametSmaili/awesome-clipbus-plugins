@@ -1,100 +1,53 @@
-# 架构速查（生成插件前先读）
+# Clipbus 插件架构（SDK 2.x / 协议 V2）
 
-> 能力签名的**唯一真相源**是已安装 SDK 的 `node_modules/@clipbus/plugin-sdk/API.md`。本文给心智模型与接线规则；具体签名以 API.md 为准，本仓库示例可能滞后。
+确切接口以安装版本 SDK 的 API.md 与 docs/README.md 为准，工程使用 manifest schema 5。
 
-## 合集模型
+## 两侧与贡献
 
-仓库 = 一堆剪贴板插件，**一插件一目录**（`clipbus-{topic}-plugin`）。`template-plugin/` 是样板。每个插件**自包含、独立 `npm install` 与构建**，没有根级构建编排。
+Runtime（Node）提供 detector、Action、message 函数；卡片页（WebView）显示附件。两侧都通过 ctx 与宿主交互。
+Runtime 从 /runtime 导入 definePlugin/result，页面从 /view 导入 ctx，跨端契约从 SDK 根导入 defineAttachment/defineMessage。
 
-## 两侧架构（核心心智模型）
+| 贡献 | Runtime | 页面/manifest |
+|---|---|---|
+| detector | 函数读取 { item, content, trigger }，await ctx.item 写入，返回 void | detectors[].inputKinds |
+| renderer | 无 Runtime 注册 | renderers[].page，height，title/tint/buttons |
+| Action | 函数读取当前 content，返回 result.text/image/none | actions[].inputKinds，无 UI |
+| message | contract.handle(fn) 注册到 messages 数组 | contract.call(data) |
 
-每个插件由两套独立构建、经宿主桥接通信的代码组成：
+仅实现选题需要的贡献。展示检测结果时配同 attachmentType 的 renderer；只写搜索扩展或内部状态不需要 renderer。
+renderer 已展示并提供复制时，不额外添加同值复制 Action。输入仅 text/image。
 
-- **Runtime 侧（Node）**：入口 `src/plugin.ts` → `definePlugin({ setup() })`，**以 manifest 能力 id 为 key** 注册 `attachmentRenderers / detectors / actions / messageHandlers`。从 `@clipbus/plugin-sdk/runtime` 导入。esbuild 打成 `dist/plugin.cjs`（CJS，宿主 require）。
-- **UI 侧（WebView）**：每个 UI 承载能力一套 `app.vue` + `main.ts` + `index.html`。从 `@clipbus/plugin-sdk/ui` 导入 `clipbus` 对象、`/dom` 导入 `patchConsole`/`patchTextInputState`。Vite 打 IIFE 到 `dist/ui/{renderers,actions}/<id>/`。
-- **通信**：① 宿主事件 **topic**（如 `clipbus.item.attachment` / `clipbus.theme`），UI 用 `shared/composables/useTopicRef.ts` 订成响应式 ref；② **RPC**：UI `clipbus.runtime.invoke({ key, payload })` ↔ Runtime 用 `defineMessage(key).handle(fn)` 注册的 `messageHandlers`。
+## 目录与构建
 
-## 四个扩展点
+每个有 UI 的 renderer 放在 src/features/<renderer-id>/，包含 payload.ts、app.vue、main.ts、index.html；
+detector/Action 的代码按职责放在同一 feature 或独立 Runtime 目录。
+Runtime 相对 .ts 导入带扩展名。共享 payload.ts 是纯契约与数据处理，不能引入 Node/DOM API。
 
-| 扩展点 | Runtime 侧 | UI 侧 | 何时用 |
-|---|---|---|---|
-| **detector** | `detect(input)` 返回 artifacts | 无 | 识别内容产出 artifact。两面：**附件**（要展示成卡片就**必配 renderer**）+ **可选 `searchProjection`**（喂宿主搜索索引、如 OCR 文本，不展示、无需 renderer）。 |
-| **attachment renderer** | `resolveAttachment(input)` | `app.vue` 卡片 | 展示识别结果。高度三形态：定值数字 / `"auto"` / `{min,max}`（配 `clipbus.window.autoFit()`）。 |
-| **auto-run action** | `runAutoAction(input,ctx)` 返回 `actionResult.text/image/none` | 无 | 一键处理（如复制转换结果）。 |
-| **draft action** | `resolveSession(input,ctx)` 给初始 draft + buttons | `app.vue` 表单，提交走 `clipbus.action.complete()` | 需要用户输入/选择后再产出。 |
+通用 build-ui.mjs 根据 manifest.renderers 将 src/features/<id>/ 打到 page 指定的位置；
+ui-pages.mjs 去重共享页面、拒绝会覆盖彼此的输出目录。通用资产在 assets/scaffold/scripts/。
+verify-build.mjs 加载实际 Runtime 对照 detector/Action 注册，并检查页面相对资源；不靠 bundle 字符串判断接线。
 
-> **扩展点按需，别凑三件套。** 触发成本递增：detector 复制时**自动**挂附件（零操作）；renderer 选中时**自动**展示，可内置**一键**复制按钮；auto-run action 要用户 **cmd+k 打开面板→选中**才运行（比一键复制多好几步）。推论：① detector 的 artifact 两面——**要展示的附件必配 renderer**（否则附件无法显示），但**只做 `searchProjection` 搜索投影的 detector 无需 renderer**（喂搜索索引、如 OCR 文本可被搜到）；② **renderer 已展示某值且有一键复制按钮时，禁止再加返回同一值的 auto-run copy-action**（纯冗余，用户永远用更快的 renderer 按钮）。auto-run action 只在能提供 renderer 给不了的东西时才加：要么无 detector/renderer（action 是唯一入口，如纯文本 sort/dedup/trim），要么产出 renderer 未覆盖的结果。draft 仅当需要用户输入/选择。
+## manifest 与写入
 
-## 输入：仅三种 kind
+schemaVersion: 5；runtime.nodeEntry 只有 Runtime 贡献时必需。卡片 page 相对插件根目录。
+writes.attachmentTypes 声明全部写入类型，writes.searchScopes 声明全部搜索 scope。
+附件类型必须以本插件 id + "." 开头；不能沿用被合并 feature 原来的插件命名空间。
 
-`text` / `image` / `path_reference`（**snake_case**；旧拼写 `pathReference` 会被拒）。content envelope **扁平**——变体字段与 `kind` 同级（如 text 的 `content.text`、image 的 `content.{width,height,format,bytes}`、path_reference 的 `content.entries[]`），不嵌套。
+附件 entry 是 { key, payload, card? }，payload 是对象。defineAttachment<T> 负责类型绑定，不替代运行时输入校验。
+外观来自 renderer 默认值叠加 attachment.card；动态外观用 ctx.renderer.update。
+卡片启动只读取一次 context，随后订阅 item/env/button，组件卸载时取消订阅。
 
-## 本 skill 的通用约定（与 template 的差异）
+Runtime 写入成功返回后提交，调用结束后 ctx 失效。detector 成功运行整体替换自己的旧输出；
+recopy 也要重写完整结果。页面/消息状态应与 detector 输出分类型；内容编辑会清空全部附件。
+单 payload、搜索文本与跨 detector 的总条数都按 API.md 的 PluginWriteLimits 预算。
 
-样板 `template-plugin` 的 `build-ui.mjs` 写死了 `template-` 前缀和特例；本 skill 的 scaffold 产出的新插件**已通用化**，约定更简单：
+## preview 与测试
 
-- **feature 目录名 === manifest 能力 id**。UI 承载能力（每个 renderer、每个带 `uiEntry` 的 draft action）各自一个 `src/features/<id>/` 目录，含 `main.ts`+`index.html`。
-- `scripts/build-ui.mjs`：扫 `src/features/*`，目录名即 id，**读 manifest** 判断它属 renderers 还是 actions，输出到 `dist/ui/<kind>/<id>/`。无前缀、无 overrides。
-- `scripts/verify-build.mjs`：**读 manifest** 推导期望产物——`dist/plugin.cjs` 含每个能力 id 字符串；每个 UI 能力的 `dist/ui/<kind>/<id>/{index.html,js,css}` 齐全且 HTML 引用页内相对资源。
-- detector / auto-run action **无 UI**：纯运行时代码，可与相关 renderer 同目录或单放，不需要 main.ts/index.html。
-- **`payload.ts` 必须 UI 安全**：它被 `app.vue`（浏览器）与 runtime 同时 import，**不能 `import … from "node:*"`**（`node:crypto`/`fs` 等）——Vite 打 UI 包时 Rollup 解析不了会 `MISSING_EXPORT`，`build:ui` 直接失败。需 Node API 算 payload 时，拆出 runtime-only 的 `builder.ts` 承载（`create*Payload`/`build*Artifact` + Node import），`payload.ts` 只留类型 + `decode*Payload`。详见 authoring-guide 第 2 节。
+createPreviewWorkbench 只负责工作台，实际卡片组件必须由 mount 挂载。
+每个 renderer 都有 V2 scenario：plugin 身份、item 快照、attachment 对象、manifest renderer 默认值、height；
+item.attachments 是引用列表，不能带 payload。消息替身放 scenario.messages。示例详情见 authoring-guide.md。
+纯 Action 插件没有卡片页，保留静态预览说明即可。
 
-## 接线不变量
-
-1. **三处 id 对齐**：manifest `id` === `plugin.ts` 注册 key === `src/features/<dir>` 目录名。
-2. **manifest `uiEntry`** = `renderers/<id>/index.html` 或 `actions/<id>/index.html`。
-3. **要展示的附件 ⇒ 必配对应 renderer**；只做 `searchProjection` 搜索投影、不展示卡片的 detector 无需 renderer。
-4. UI CSS 只用 `var(--clipbus-*, 回退)` 主题 token。
-5. 不改 node_modules 内 SDK；签名以 API.md 为准。
-6. **相对 `.ts` import 带 `.ts` 扩展名**：`.ts` 运行时文件间的相对 import 用 `.ts`（冒烟测试用 Node 直接 require）；`.vue` 文件内可不带。
-7. **attachmentType 在插件命名空间内**：detector/renderer 的 `attachmentType` 必须 `plugin.id + "."` 前缀（`plugin.<topic>.<feat>`）。**宿主加载期强制**，越界拒载报 `... outside plugin namespace ...`；`npm run verify` **不校验**。合并/扩展插件时把 feature 的 attachmentType 改到**宿主**命名空间（manifest detector+renderer、`payload.ts` 常量、测试与 scenario 全部同步）。
-
-## manifest 骨架
-
-```jsonc
-{
-  "schemaVersion": 4,
-  "plugin": { "id": "plugin.<topic>", "title": "...", "version": "0.1.0" },
-  "install": { "runtime": "node", "entry": "scripts/install.mjs" },
-  "runtime": { "nodeEntry": "dist/plugin.cjs", "uiRoot": "dist/ui" },
-  "permissions": [],                 // 按需：setAttachment/setSearchExtension/setTags/setPinned
-  "attachmentRenderers": [
-    { "id": "<id>", "title": "...", "attachmentType": "plugin.<topic>.<feat>",  // 必须 plugin.id 前缀（宿主加载期强制）
-      "height": 220, "uiEntry": "renderers/<id>/index.html" }
-  ],
-  "detectors": [
-    { "id": "<id>", "title": "...", "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.<topic>.<feat>"] }
-  ],
-  "actions": [
-    { "id": "<id>", "title": "...", "supportedInputKinds": ["text"],
-      "lifecycle": "auto-run", "keywords": ["..."] }
-    // draft 多一个 "uiEntry": "actions/<id>/index.html"，lifecycle:"draft"
-  ]
-}
-```
-
-schema v4 下 Action Runtime 收到 `{ sourceItem, content, attachments }`：
-`sourceItem` 是原始剪贴板身份，`content` 是可由前序 auto-run Action 改变 kind 的当前级联值。
-Action 的过滤和处理必须依据 `content.kind`，不能依据 `sourceItem.type`。
-
-Detector artifact 不写 `attachmentSyncScope`，`item.setAttachments` entry 不写
-`syncScope`；attachment 由宿主统一作为 `local_only` 派生数据保存。跨设备搜索文本用
-`searchProjection` 或 `item.setSearchExtension`。
-
-## 常用命令（插件目录内）
-
-- `npm install` — 装 SDK（带来权威文档 docs/ 与 API.md）。
-- `npm run dev` — Vite 预览工作台（`?view=renderer` / `?view=action`）。
-- `npm run build` — typecheck → lint → 构建 → verify-build。
-- `npm test` — Node test runner 跑 `tests/**/*.test.cjs`。
-- `npm run verify` — build + test（**完成门槛**）。
-- 单测：`node --experimental-strip-types --require ./tests/setup.cjs --test ./tests/runtime/<x>.test.cjs`。
-
-## 权限模型
-
-`manifest.permissions[]` 声明后，对应 host 写操作才放行：`setAttachment`（挂附件）、`setSearchExtension`（搜索投影）、`setTags`、`setPinned`。只声明用到的。
-
-## Plugin Pro 配额（知道即可，别触发）
-
-免费档 action 上限 3；声明更多会出 gating 提示。新插件除非选题真需要，别堆超过 3 个 action。
+验证：npm install → 读 SDK 文档 → npm run verify。保留算法测试，增加构建产物的真实调用测试；
+preview scenario 用 SDK computeBootstrap 验证，并实际打开工作台检查场景、主题与按钮。
+dist 是宿主加载的真实产物，必须在实际目录重建。

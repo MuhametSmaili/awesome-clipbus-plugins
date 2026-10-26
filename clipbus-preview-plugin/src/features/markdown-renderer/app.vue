@@ -1,48 +1,32 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
-import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeMarkdownPayload } from "./payload";
+import { computed } from "vue";
+import { useCard } from "../../shared/composables/useCard";
+import { attachment, decodeMarkdownPayload } from "./payload";
 
-// autoFit must observe this renderer's own root (content-sized), not document.body —
-// in the dev preview workbench document.body is the whole page, so without a target
-// autoFit never converges and spams setHeight every frame.
-const rootEl = ref<HTMLElement | null>(null);
-
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
-const payload = computed(() =>
-  decodeMarkdownPayload(attachmentPayload.value?.attachment?.payloadJson)
-);
-
-let stopAutoFit: (() => void) | null = null;
-
-onMounted(() => {
-  stopAutoFit = autoFit({ min: 120, max: 480, target: rootEl.value ?? undefined });
-});
-
-onUnmounted(() => {
-  stopAutoFit?.();
-});
+const card = useCard(attachment);
+const payload = computed(() => decodeMarkdownPayload(card.attachment.value.payload));
 </script>
 
 <template>
-  <main ref="rootEl" class="shell">
-    <section v-if="payload" class="content">
-      <div class="meta-row">
-        <span class="meta-item">{{ payload.sourceChars }} chars</span>
-        <span class="meta-sep">·</span>
-        <span class="meta-item">{{ payload.lineCount }} lines</span>
-        <span v-if="payload.headingCount > 0" class="meta-sep">·</span>
-        <span v-if="payload.headingCount > 0" class="meta-item">{{ payload.headingCount }} headings</span>
-      </div>
-      <div class="md-body" v-html="payload.html"></div>
-    </section>
-    <div v-else class="empty">Awaiting Markdown content</div>
-  </main>
+  <div class="viewport">
+    <main class="shell">
+      <section v-if="payload" class="content">
+        <div class="meta-row">
+          <span class="meta-item">{{ payload.sourceChars }} chars</span>
+          <span class="meta-sep">·</span>
+          <span class="meta-item">{{ payload.lineCount }} lines</span>
+          <span v-if="payload.headingCount > 0" class="meta-sep">·</span>
+          <span v-if="payload.headingCount > 0" class="meta-item">{{ payload.headingCount }} headings</span>
+        </div>
+        <div class="md-body" v-html="payload.html"></div>
+      </section>
+      <div v-else class="empty">Awaiting Markdown content</div>
+    </main>
+  </div>
 </template>
 
 <style scoped>
+.viewport { height: 100%; overflow: auto; }
 .shell {
   padding: 0;
   display: flex;

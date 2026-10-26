@@ -2,8 +2,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const {
+  fakeHost, imageContent, itemSnapshot, setupPlugin, textContent,
+} = require('../support/plugin.cjs');
 
-const root = path.resolve(__dirname, '..', '..');
+const root = path.resolve(__dirname, '../..');
 
 // ── pure stripAnsi unit tests ─────────────────────────────────────────────────
 
@@ -33,56 +36,20 @@ test('stripAnsi handles empty string', () => {
   assert.equal(stripAnsi(''), '');
 });
 
-// ── factory shape ────────────────────────────────────────────────────────────
-
-test('createStripAnsiAction returns a handler with runAutoAction and resolveSession', () => {
-  const { createStripAnsiAction } = require(path.resolve(root, 'src/features/line-tools/strip-ansi.ts'));
-  const handler = createStripAnsiAction();
-  assert.equal(typeof handler.runAutoAction, 'function');
-  assert.equal(typeof handler.resolveSession, 'function');
-});
-
-// ── action wiring ────────────────────────────────────────────────────────────
-
-function makeInput(text) {
-  return {
-    item: { id: 'test', type: 'text', tags: [], sourceAppID: '' },
-    content: { kind: 'text', text },
-    attachments: [],
-  };
+for (const [label, content, expected] of [
+  ['SGR codes', textContent('\x1b[31mred\x1b[0m'), { kind: 'text', text: 'red' }],
+  ['plain text', textContent('hello\nworld'), { kind: 'text', text: 'hello\nworld' }],
+  ['empty text', textContent(''), { kind: 'none' }],
+  ['image input', imageContent, { kind: 'none' }],
+]) {
+  test(`built strip-ansi action handles ${label}`, async t => {
+    const { registry, launch } = await setupPlugin(t);
+    const host = fakeHost(launch);
+    const output = await registry.actions['text-strip-ansi']({
+      item: itemSnapshot(content.kind), content,
+    }, host.ctx);
+    assert.deepEqual(output.result, expected);
+    assert.equal(output.message, expected.kind === 'none' ? 'Nothing to process' : 'Done');
+    assert.deepEqual(host.calls, []);
+  });
 }
-
-test('strip-ansi action removes SGR codes and returns resultKind text', async () => {
-  const { createStripAnsiAction } = require(path.resolve(root, 'src/features/line-tools/strip-ansi.ts'));
-  const handler = createStripAnsiAction();
-  const result = await handler.runAutoAction(makeInput('\x1b[31mred\x1b[0m'));
-  assert.equal(result.result.resultKind, 'text');
-  assert.equal(result.result.text, 'red');
-});
-
-test('strip-ansi action passes through plain text unchanged', async () => {
-  const { createStripAnsiAction } = require(path.resolve(root, 'src/features/line-tools/strip-ansi.ts'));
-  const handler = createStripAnsiAction();
-  const result = await handler.runAutoAction(makeInput('hello\nworld'));
-  assert.equal(result.result.resultKind, 'text');
-  assert.equal(result.result.text, 'hello\nworld');
-});
-
-test('strip-ansi action on empty text returns resultKind none', async () => {
-  const { createStripAnsiAction } = require(path.resolve(root, 'src/features/line-tools/strip-ansi.ts'));
-  const handler = createStripAnsiAction();
-  const result = await handler.runAutoAction(makeInput(''));
-  assert.equal(result.result.resultKind, 'none');
-});
-
-test('strip-ansi action on non-text kind returns resultKind none', async () => {
-  const { createStripAnsiAction } = require(path.resolve(root, 'src/features/line-tools/strip-ansi.ts'));
-  const handler = createStripAnsiAction();
-  const input = {
-    item: { id: 'test', type: 'image', tags: [], sourceAppID: '' },
-    content: { kind: 'image', data: '' },
-    attachments: [],
-  };
-  const result = await handler.runAutoAction(input);
-  assert.equal(result.result.resultKind, 'none');
-});

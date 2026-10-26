@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeIpPayload } from "./payload";
+import { useCard } from "../../shared/composables/useCard";
+import { attachment, decodeIpPayload } from "./payload";
 import type { IpPayload } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the dev preview workbench document.body is the whole page, so without a target
-// autoFit never converges and spams setHeight every frame.
+// autoFit never converges and spams height updates every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const { attachment: currentAttachment } = useCard(attachment);
 const payload = computed<IpPayload | null>(() =>
-  decodeIpPayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeIpPayload(currentAttachment.value.payload)
 );
 
 // ── Copy state ────────────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ const copiedKey = ref<string | null>(null);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function copyText(key: string, text: string) {
-  await clipbus.clipboard.copyText({ text });
+  await ctx.system.copyText({ text });
   copiedKey.value = key;
   if (copyTimer) clearTimeout(copyTimer);
   copyTimer = setTimeout(() => {
@@ -30,24 +30,17 @@ async function copyText(key: string, text: string) {
   }, 1500);
 }
 
-// ── Button host-invoke (optional: toolbar Copy button) ───────────────────────
+// ── Toolbar (optional: toolbar Copy button) ───────────────────────
 
 let unsub: (() => void) | null = null;
 let stopAutoFit: (() => void) | null = null;
 
-onMounted(async () => {
+onMounted(() => {
   stopAutoFit = autoFit({ min: 140, max: 380, target: rootEl.value ?? undefined });
-  try {
-    await clipbus.attachmentRenderer.setButtons({
-      buttons: [{ id: "copy-input", title: "Copy IP" }],
-    });
-  } catch {
-    /* not in attachment renderer context */
-  }
 
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy-input" && payload.value) {
-      await clipbus.clipboard.copyText({ text: payload.value.input });
+  unsub = ctx.renderer.onButton(async (d) => {
+    if (d.id === "copy-input" && payload.value) {
+      await ctx.system.copyText({ text: payload.value.input });
     }
   });
 });

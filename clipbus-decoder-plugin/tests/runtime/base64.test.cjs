@@ -10,9 +10,9 @@ const manifest = JSON.parse(fs.readFileSync(path.resolve(root, 'manifest.json'),
 
 const sampleItem = {
   id: 'item-1',
-  type: 'text',
+  kind: 'text',
   tags: [],
-  sourceAppID: 'com.example.app',
+  sourceApp: 'com.example.app',
 };
 
 // ---------------------------------------------------------------------------
@@ -25,13 +25,13 @@ test('manifest has base64-detector', () => {
 });
 
 test('manifest has base64-renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('base64-renderer'), 'missing base64-renderer');
 });
 
-test('base64-renderer uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'base64-renderer');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('base64-renderer page references renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'base64-renderer');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -39,63 +39,63 @@ test('base64-renderer uiEntry references renderers/ path', () => {
 // ---------------------------------------------------------------------------
 
 test('detector detects SGVsbG8sIFdvcmxkIQ== and returns correct decoded text', async () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const { attachment, createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: 'SGVsbG8sIFdvcmxkIQ==' }, attachments: [] };
-  const artifact = buildBase64Artifact(input);
+  const artifact = createBase64Payload(input);
   assert.ok(artifact, 'artifact should not be null for valid base64');
-  assert.equal(artifact.attachmentType, 'plugin.decoder.base64');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.equal(attachment.type, 'plugin.decoder.base64');
+  const payload = artifact;
   assert.equal(payload.kind, 'base64_preview');
   assert.equal(payload.decoded, 'Hello, World!');
   assert.equal(payload.encoding, 'standard');
 });
 
 test('detector decodes URL-safe base64 (SGVsbG8_ → Hello?)', async () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const { createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
   // "Hello?" in standard base64 is "SGVsbG8/" — URL-safe replaces / with _: "SGVsbG8_"
   const input = { item: sampleItem, content: { kind: 'text', text: 'SGVsbG8_' }, attachments: [] };
-  const artifact = buildBase64Artifact(input);
+  const artifact = createBase64Payload(input);
   assert.ok(artifact, 'should detect URL-safe base64');
-  const payload = JSON.parse(artifact.payloadJson);
+  const payload = artifact;
   assert.equal(payload.encoding, 'url-safe');
   assert.equal(payload.decoded, 'Hello?');
 });
 
 test('detector accepts readable multilingual UTF-8 text', () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const { createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '5L2g5aW977yM5LiW55WM77yB' }, attachments: [] };
-  const artifact = buildBase64Artifact(input);
+  const artifact = createBase64Payload(input);
   assert.ok(artifact, 'readable non-ASCII UTF-8 should be detected as base64');
-  assert.equal(JSON.parse(artifact.payloadJson).decoded, '你好，世界！');
+  assert.equal(artifact.decoded, '你好，世界！');
 });
 
 test('detector rejects base64-shaped text that decodes to invalid UTF-8', () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const { createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: 'abcdefghijklmnopqrstuvwx' }, attachments: [] };
-  assert.equal(buildBase64Artifact(input), null, 'garbled replacement characters are not readable text');
+  assert.equal(createBase64Payload(input), null, 'garbled replacement characters are not readable text');
 });
 
 test('detector rejects base64 that decodes to control-character data', () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const { createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: 'AAAAAAAAAAAAAAAAAAAAAAAA' }, attachments: [] };
-  assert.equal(buildBase64Artifact(input), null, 'binary control data is not readable text');
+  assert.equal(createBase64Payload(input), null, 'binary control data is not readable text');
 });
 
 test('detector ignores plain English text', () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
-  const artifact = buildBase64Artifact({ item: sampleItem, content: { kind: 'text', text: 'hello world foo bar' }, attachments: [] });
+  const { createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const artifact = createBase64Payload({ item: sampleItem, content: { kind: 'text', text: 'hello world foo bar' }, attachments: [] });
   assert.equal(artifact, null, 'plain text should not be detected as base64');
 });
 
 test('detector ignores short strings', () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
-  const artifact = buildBase64Artifact({ item: sampleItem, content: { kind: 'text', text: 'abc=' }, attachments: [] });
+  const { createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const artifact = createBase64Payload({ item: sampleItem, content: { kind: 'text', text: 'abc=' }, attachments: [] });
   assert.equal(artifact, null, 'short string should be ignored');
 });
 
 test('detector ignores image content kind', () => {
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
-  const artifact = buildBase64Artifact({ item: sampleItem, content: { kind: 'image', width: 100, height: 100, format: 'png', bytes: 0 }, attachments: [] });
+  const { createBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const artifact = createBase64Payload({ item: sampleItem, content: { kind: 'image', width: 100, height: 100, format: 'png', bytes: 0 }, attachments: [] });
   assert.equal(artifact, null, 'image kind should not produce base64 artifact');
 });
 
@@ -107,45 +107,11 @@ test('decodeBase64Payload returns null for non-base64-preview payloads', () => {
   assert.equal(decodeBase64Payload(undefined), null);
 });
 
-// ---------------------------------------------------------------------------
-// Renderer
-// ---------------------------------------------------------------------------
 
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createBase64Renderer } = require(path.resolve(root, 'src/features/base64-renderer/renderer.ts'));
-  const renderer = createBase64Renderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.decoder',
-      attachmentType: 'plugin.decoder.base64',
-      attachmentKey: 'primary',
-      payloadJson: 'not-valid-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false, 'bad payload → shouldDisplay:false');
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createBase64Renderer } = require(path.resolve(root, 'src/features/base64-renderer/renderer.ts'));
-  const { buildBase64Artifact } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
-  const artifact = buildBase64Artifact({ item: sampleItem, content: { kind: 'text', text: 'SGVsbG8sIFdvcmxkIQ==' }, attachments: [] });
-  const renderer = createBase64Renderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: 'SGVsbG8sIFdvcmxkIQ==' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.decoder',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
+test('decodeBase64Payload accepts structured V2 attachment payloads', () => {
+  const { createBase64Payload, decodeBase64Payload } = require(path.resolve(root, 'src/features/base64-renderer/payload.ts'));
+  const payload = createBase64Payload({ content: { kind: 'text', text: 'SGVsbG8sIFdvcmxkIQ==' } });
+  assert.ok(payload);
+  assert.deepEqual(decodeBase64Payload(payload), payload);
+  assert.deepEqual(decodeBase64Payload(JSON.stringify(payload)), payload);
 });

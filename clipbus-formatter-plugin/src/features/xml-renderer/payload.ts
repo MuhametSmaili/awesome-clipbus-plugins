@@ -1,7 +1,7 @@
 // payload.ts — UI-safe single source of truth for the XML Formatter attachment.
 // NO `import … from "node:*"` here: this file is imported by app.vue (browser) too.
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 const ATTACHMENT_TYPE = "plugin.formatter.xml";
 const MAX_INPUT = 20000;
@@ -236,9 +236,9 @@ export function createXmlPayload(input: unknown): XmlPayload | null {
   };
 }
 
-export function decodeXmlPayload(payloadJson: string | null | undefined): XmlPayload | null {
+export function decodeXmlPayload(value: unknown): XmlPayload | null {
   try {
-    const parsed = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const parsed = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (parsed.kind !== "xml_preview") return null;
     return parsed as XmlPayload;
   } catch {
@@ -246,17 +246,4 @@ export function decodeXmlPayload(payloadJson: string | null | undefined): XmlPay
   }
 }
 
-export function buildXmlArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createXmlPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "xml",
-      searchText: payload.formatted.slice(0, 200),
-      label: "XML",
-    },
-  };
-}
+export const attachment = defineAttachment<XmlPayload>(ATTACHMENT_TYPE);

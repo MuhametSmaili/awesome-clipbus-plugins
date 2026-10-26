@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "plugin": {
     "id": "plugin.extractor",
     "title": "Extractor",
@@ -10,100 +10,170 @@
     "entry": "scripts/install.mjs"
   },
   "runtime": {
-    "nodeEntry": "dist/plugin.cjs",
-    "uiRoot": "dist/ui"
+    "nodeEntry": "dist/plugin.cjs"
   },
-  "permissions": ["setAttachment"],
   "detectors": [
     {
       "id": "entities-detector",
       "title": "URL / Email / IP Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.extractor.entities"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "url-detector",
       "title": "URL / Query String Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.extractor.url"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "ip-detector",
       "title": "IP Address Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.extractor.ip"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "geo-detector",
       "title": "Coordinates Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.extractor.geo"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "mac-detector",
       "title": "MAC Address Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.extractor.mac"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "uuid-detector",
       "title": "UUID Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.extractor.uuid"]
+      "inputKinds": [
+        "text"
+      ]
     }
   ],
-  "attachmentRenderers": [
+  "actions": [],
+  "renderers": [
     {
       "id": "entities-renderer",
       "title": "Extracted Entities",
       "attachmentType": "plugin.extractor.entities",
-      "height": { "min": 140, "max": 420 },
-      "uiEntry": "renderers/entities-renderer/index.html"
+      "height": {
+        "min": 140,
+        "max": 420
+      },
+      "page": "dist/ui/renderers/entities-renderer/index.html",
+      "tint": "#2563EB",
+      "buttons": [
+        {
+          "id": "copy-all",
+          "title": "Copy All"
+        }
+      ]
     },
     {
       "id": "url-parsed",
       "title": "URL Details",
       "attachmentType": "plugin.extractor.url",
-      "height": { "min": 140, "max": 500 },
-      "uiEntry": "renderers/url-parsed/index.html"
+      "height": {
+        "min": 140,
+        "max": 500
+      },
+      "page": "dist/ui/renderers/url-parsed/index.html",
+      "tint": "#2563EB",
+      "buttons": [
+        {
+          "id": "copy",
+          "title": "Copy query params (JSON)"
+        }
+      ]
     },
     {
       "id": "ip-details",
       "title": "IP Address",
       "attachmentType": "plugin.extractor.ip",
-      "height": { "min": 140, "max": 380 },
-      "uiEntry": "renderers/ip-details/index.html"
+      "height": {
+        "min": 140,
+        "max": 380
+      },
+      "page": "dist/ui/renderers/ip-details/index.html",
+      "tint": "#0891B2",
+      "buttons": [
+        {
+          "id": "copy-input",
+          "title": "Copy IP"
+        }
+      ]
     },
     {
       "id": "geo-coordinates",
       "title": "Coordinates",
       "attachmentType": "plugin.extractor.geo",
-      "height": { "min": 120, "max": 340 },
-      "uiEntry": "renderers/geo-coordinates/index.html"
+      "height": {
+        "min": 120,
+        "max": 340
+      },
+      "page": "dist/ui/renderers/geo-coordinates/index.html",
+      "tint": "#16A34A",
+      "buttons": [
+        {
+          "id": "copy-decimal",
+          "title": "Copy Coordinates"
+        }
+      ]
     },
     {
       "id": "mac-address",
       "title": "MAC Address",
       "attachmentType": "plugin.extractor.mac",
-      "height": { "min": 120, "max": 320 },
-      "uiEntry": "renderers/mac-address/index.html"
+      "height": {
+        "min": 120,
+        "max": 320
+      },
+      "page": "dist/ui/renderers/mac-address/index.html",
+      "tint": "#7C3AED",
+      "buttons": [
+        {
+          "id": "copy-input",
+          "title": "Copy MAC"
+        }
+      ]
     },
     {
       "id": "uuid-details",
       "title": "UUID",
       "attachmentType": "plugin.extractor.uuid",
-      "height": { "min": 120, "max": 360 },
-      "uiEntry": "renderers/uuid-details/index.html"
+      "height": {
+        "min": 120,
+        "max": 360
+      },
+      "page": "dist/ui/renderers/uuid-details/index.html",
+      "tint": "#7C3AED",
+      "buttons": [
+        {
+          "id": "copy-canonical",
+          "title": "Copy UUID"
+        }
+      ]
     }
   ],
-  "actions": [
-    {
-      "id": "regex-tool",
-      "title": "Regex Tester",
-      "supportedInputKinds": ["text"],
-      "lifecycle": "draft",
-      "uiEntry": "actions/regex-tool/index.html",
-      "keywords": ["regex", "regexp", "pattern", "match"]
-    }
-  ]
+  "writes": {
+    "attachmentTypes": [
+      "plugin.extractor.entities",
+      "plugin.extractor.url",
+      "plugin.extractor.ip",
+      "plugin.extractor.geo",
+      "plugin.extractor.mac",
+      "plugin.extractor.uuid"
+    ],
+    "searchScopes": [
+      "extractor",
+      "url",
+      "query"
+    ]
+  }
 }

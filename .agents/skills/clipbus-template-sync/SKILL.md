@@ -34,11 +34,17 @@ description: >-
 - **用**：用户想把上游模板的更新同步进来、并扩散到各插件；或说"模板升级了，其他插件也更新一下""把 SDK 升到所有插件"。
 - **不用**：用户想**从零新建/扩展**一个插件（那是 `clipbus-plugin-generator`）；或只想读懂/调试某个插件的业务代码（普通编码任务）；或当前不在这个合集仓库里。
 
+## 当前标准
+
+SDK ^2.0.0、协议 V2、manifest schema 5。旧版本的迁移案例仅作历史证据，不是当前接口范式。
+宿主已经移除 Draft Action；同步时删除相关实现/表单/预览/测试与教程，纯此类能力的插件经用户确认后整体移除。
+当前 preview 是 V2 的 plugin/item/attachment/renderer/height；item.attachments 仅放引用。每个 renderer 必须保留实际组件和业务样例。
+
 ## 前置：确认环境
 
 1. 确认在合集仓库根：存在 `template-plugin/` 目录。不在则停下并说明。
 2. 本 skill 脚本路径（相对本 skill 目录）：`scripts/pull-template.mjs`、`scripts/sdk-api-diff.mjs`、`scripts/check-consistency.mjs`。判断资料在 `references/propagation-analysis.md`。
-3. **隔离方式（用户已选）**：在**当前分支直接干**，不开新分支、不开 worktree。好处是 verify 天然把 `dist/` 重建在用户 Clipbus 实际加载的路径。代价是无 git 级隔离——所以**动手前确认工作树是干净的**（`git status`），脏的话先请用户处理或 stash，否则 template diff 会和用户既有改动混在一起、读不清。
+3. **隔离方式（用户已选）**：在**当前分支直接干**，不开新分支、不开 worktree。好处是 verify 天然把 `dist/` 重建在用户 Clipbus 实际加载的路径。代价是无 git 级隔离——所以**动手前确认工作树是干净的**（`git status`），脏的话先请用户处理或 stash，否则 template diff 会和用户既有改动混在一起、读不清。若既有未跟踪文件逐字节等于本次上游新增文件，可先只读分析并把保留/纳入方案明确交 review；已获授权后按该方案处理，不重复索取确认。
 
 ## 工作流（六阶段）
 
@@ -94,15 +100,20 @@ description: >-
 - **绝不直接把 template 的 `build-ui.mjs`/`verify-build.mjs` 拷给插件**：template 是 demo 专用版，插件用的是 generator 脚手架的通用 manifest 驱动版。直接拷会让全部派生插件构建失败。这俩有真实行为变化时，先 port 进 `clipbus-plugin-generator/assets/scaffold/scripts/` 再分发，并同步更新 generator 资产。
 - **package.json 字段级合并，禁止整文件覆盖**：只同步 SDK 版本 / scripts 段 / 共享 devDeps；保留各插件的 `name`/`description`/自有依赖。
 - **SDK 版本 bump ≠ 只改版本号，且 verify 绿 ≠ 没影响**：升级的真实影响**藏在依赖包内部**。**必跑 `scripts/sdk-api-diff.mjs` diff 新旧 SDK 的 API、根 Markdown 与 docs 教程正文**。删除/改签名是**破坏性**的（verify 会红，报错先读 `API.md`/`docs/README.md` 再改）；**新增的可选 API（如 0.8.4 的 `locale`）verify 绿也照样是真实影响，必须在方案里列出并问是否采用**——只靠文件 diff + 试点 verify 会漏掉它（真实踩过）。**任何 added/modified 文档都必须读实际 diff**：0.8.5 的 capability 数没变，却新增 `docs/preview.md` + `@clipbus/plugin-sdk/preview`；0.8.7→0.9.5 的关键 Action 级联语义又同时藏在根 `README.md` / `SPECIFICATION.md`，只看 `docs/` 文件名仍会漏判。
-- **schema major bump 要迁移契约，不是只改 manifest 数字**：每次都从 SDK `manifest.md` / `API.md` 提取旧字段删除与新语义，并同步代码、测试、preview、插件设计文档和 generator authoring 资产。v2→v3 要把 Action `supportedItemTypes` 改成 `supportedInputKinds`、清掉 legacy 字段，并让 Action 按当前 `content.kind` 处理（图片用当前输入专用 API）；v3→v4 要删除 detector artifact 的 `attachmentSyncScope` 与 `item.setAttachments` entry 的 `syncScope`，attachment 改由宿主统一按 `local_only` 保存，跨设备搜索仍显式使用 `searchProjection` / `item.setSearchExtension`。
+- **schema major bump 迁移完整契约**：对照 SDK API.md 与迁移文档。当前 v4→v5 需要 renderers/page/inputKinds/writes、函数 handler、结构化 payload、/view ctx、typed messages，以及 V2 preview。删除已移除入口；同步测试、设计文档和 generator 资产。Action 仅处理当前 content，item 保持 Flow 起点身份。
 - **added 文件不在 `git diff` 里**：上游新增文件是 untracked，必须从 `pull-template.mjs` 清单取，否则会漏传播。
 - **dist 在真实路径重建**：dist 是 gitignore 产物、宿主实际加载它；在当前分支重建（别跑去 worktree）。
 - **全新 Agent 并行**：不复用 idle executor；orchestrator 独占根索引等共享物；自己复跑 verify 复核。
 - **历史 verify 例外不能永久沿用**：环境性失败必须按本次真实上游内容重新确认，不能把过去的红灯硬编码成永久豁免。0.8.7→0.9.5 的上游已删除依赖 sibling `protocol/plugin` 的 `wire-roundtrip.test.cjs`，因此 template 自身重新要求 `npm run verify` 全绿；未来若再遇环境性失败，须给出当前证据后再决定是否保留上游原样。
-- **template 自有内容不传播，但 SDK 驱动的架构迁移要传播**：`src/features/*`、`src/preview/scenarios/*`、template 的 `manifest.json`/`README*`/`GUIDE*`、`tests/**/*.test.cjs`（demo 测试）是 template 的演示**内容**，各插件有自己的——**绝不用 template 版本覆盖**（会把插件 preview/feature 打回 demo 死占位）。**但当 SDK 改变 preview 的「架构」**（如 0.8.5 把整套工作台收进 `@clipbus/plugin-sdk/preview` 的 `createPreviewWorkbench`、删除 `PreviewShellApp.vue`），就要**逐插件迁移** `preview-host/main.ts` + `scenarios/*` 到新 harness 形状（`scenario` 改用 SDK `PreviewScenario` 类型、`component`→`view`、renderer 的 `attachment` 嵌套 `{item,attachment:{…payloadJson}}`、`mount` 适配器按 `view` 选组件、删 `PreviewShellApp.vue`），**保留各自的 payload/组件、只换接线方式**；别因「src/preview 不传播」漏掉它。区分：不 COPY template 的 preview 内容，但要 ADOPT 新的 SDK preview API。纯 auto-run 插件无 scenario：不调 `createPreviewWorkbench`（要 ≥1 scenario），给静态说明 `main.ts`。同步后还要更新 generator 资产（`scaffold.mjs`/authoring-guide/SKILL.md）让新插件也走新范式。`tests/setup.cjs` 是共享 harness，**是**例外（要同步）。
+- **保留业务内容，迁移 SDK 架构**：模板的 features、scenarios、manifest、README/GUIDE 与演示测试不直接覆盖派生插件。当前 V2 preview 必须逐插件改为 plugin 身份、item 快照、结构化 attachment、manifest renderer 默认值与 height；mount 挂载实际组件并清理订阅。scenario.messages 替代 Runtime。纯 Runtime Action 保留无卡片说明。旧 useTopicRef/tests/setup.cjs 已删除；共享 useCard 和 tests/support/plugin.cjs 要复制，模板专用 digest/PNG decoder 不传播。
+- **新增/删除尚未暂存也要校验**：一致性检查读取 cached + others --exclude-standard 并过滤实际已删除路径；不能只看 git ls-files 的旧索引。已删除插件不再参与枚举；缺失分叉脚本必须报错，并与 generator 资产比较，不能只按插件之间互相一致。
+- **API 抽取不能静默空集**：V2 不再提供 V1 capabilityClients 生成文件。sdk-api-diff 解析公共 API.md 的 Methods/Events，并检查抽取数量符合 Overview；未知格式必须报错。跨协议新增方法名可能是旧能力改名，不能一律判断为可选加法。
+- **preview 验证到实际页面**：保留各业务样例，通过 SDK computeBootstrap 校验每个 renderer 的 scenario，并实际打开工作台检查组件、场景、主题与按钮；fake Host 不验证 writes 总量或真实文件。
 - **判断驱动不等于无依据**：每次都读真实 diff，但用 `references/propagation-analysis.md` 的类别表加速；遇到表里没有的"新未分类"改动，保守处理并在阶段 2 显式交用户拍板，绝不静默丢弃。
 
 ## 参考文件
 
 - `references/propagation-analysis.md` — 两个真相源、怎么读增量、类别表（识别+处置）、已知逐字共享集、坑、跨 skill 依赖（动手分析前先读）。
 - `DESIGN.md` — 设计原理与两个关键决策（判断驱动 / 全自动+一关卡）的来由，及为何独立于 `clipbus-plugin-generator`。
+
+脚本回归：在仓库根运行 `python3 .agents/skills/clipbus-template-sync/scripts/test-consistency.py`，覆盖未暂存新增 helper、退役插件、删除共享文件与缺失通用脚本。

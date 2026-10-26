@@ -8,12 +8,8 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, 'manifest.json'), 'utf8'));
 
-const sampleItem = {
-  id: 'item-1',
-  type: 'text',
-  tags: [],
-  sourceAppID: 'com.example.app',
-};
+const { itemSnapshot } = require('../support/plugin.cjs');
+const sampleItem = itemSnapshot('text');
 
 const sampleUrl = 'https://example.com:8080/a/b?x=1&y=2#frag';
 
@@ -27,45 +23,39 @@ test('manifest has url-detector', () => {
 });
 
 test('manifest has url-parsed renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('url-parsed'), 'missing url-parsed');
 });
 
-test('url-parsed uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'url-parsed');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('url-parsed page references dist/ui/renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'url-parsed');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
 // ---------------------------------------------------------------------------
 // Feature factories — each returns a handler with the expected method
 // ---------------------------------------------------------------------------
 
-test('createUrlDetector returns a handler with detect method', () => {
+test('createUrlDetector returns a detector function', () => {
   const { createUrlDetector } = require(path.resolve(root, 'src/features/url-parsed/detector.ts'));
   const handler = createUrlDetector();
-  assert.equal(typeof handler.detect, 'function');
+  assert.equal(typeof handler, 'function');
 });
 
-test('createUrlRenderer returns a handler with resolveAttachment method', () => {
-  const { createUrlRenderer } = require(path.resolve(root, 'src/features/url-parsed/renderer.ts'));
-  const handler = createUrlRenderer();
-  assert.equal(typeof handler.resolveAttachment, 'function');
-});
 
 // ---------------------------------------------------------------------------
 // Detector / payload
 // ---------------------------------------------------------------------------
 
-test('buildUrlArtifact parses full URL with host, port, query, hash', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+test('createUrlPayload parses full URL with host, port, query, hash', () => {
+  const { createUrlPayload, ATTACHMENT_TYPE } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: { kind: 'text', text: sampleUrl },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.ok(artifact, 'artifact should not be null for valid URL');
-  assert.equal(artifact.attachmentType, 'plugin.extractor.url');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload, 'payload should not be null for valid URL');
+  assert.equal(ATTACHMENT_TYPE, 'plugin.extractor.url');
   assert.equal(payload.kind, 'url_parsed');
   assert.equal(payload.inputType, 'url');
   assert.equal(payload.host, 'example.com');
@@ -77,51 +67,49 @@ test('buildUrlArtifact parses full URL with host, port, query, hash', () => {
   assert.equal(payload.query[1].value, '2');
 });
 
-test('buildUrlArtifact returns null for plain text', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+test('createUrlPayload returns null for plain text', () => {
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: { kind: 'text', text: 'hello world' },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.equal(artifact, null, 'plain text should not produce artifact');
+  assert.equal(payload, null, 'plain text should not produce payload');
 });
 
-test('buildUrlArtifact returns null for mailto: (no // authority)', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+test('createUrlPayload returns null for mailto: (no // authority)', () => {
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: { kind: 'text', text: 'mailto:a@b.com' },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.equal(artifact, null, 'mailto: should not produce artifact');
+  assert.equal(payload, null, 'mailto: should not produce payload');
 });
 
-test('buildUrlArtifact detects plain https URL', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+test('createUrlPayload detects plain https URL', () => {
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: { kind: 'text', text: 'https://example.com/p?a=1' },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.ok(artifact, 'https URL should be detected');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload, 'https URL should be detected');
   assert.equal(payload.scheme, 'https');
   assert.equal(payload.query.length, 1);
 });
 
-test('buildUrlArtifact parses query values with URLSearchParams semantics', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+test('createUrlPayload parses query values with URLSearchParams semantics', () => {
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: {
       kind: 'text',
       text: 'https://example.com/?bad=%FF&nul=%00&ok=%E4%BD%A0%E5%A5%BD&space=hello+world',
     },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.ok(artifact, 'the URL itself remains valid');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload, 'the URL itself remains valid');
   assert.deepEqual(payload.query, [
     { key: 'bad', value: '�' },
     { key: 'nul', value: '\u0000' },
@@ -130,15 +118,14 @@ test('buildUrlArtifact parses query values with URLSearchParams semantics', () =
   ]);
 });
 
-test('buildUrlArtifact detects naked query strings and preserves duplicate pairs', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+test('createUrlPayload detects naked query strings and preserves duplicate pairs', () => {
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: { kind: 'text', text: 'tag=one&tag=two&lang=zh-CN' },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.ok(artifact);
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload);
   assert.equal(payload.inputType, 'query');
   assert.deepEqual(payload.query, [
     { key: 'tag', value: 'one' },
@@ -147,15 +134,14 @@ test('buildUrlArtifact detects naked query strings and preserves duplicate pairs
   ]);
   assert.equal(payload.hasDuplicateKeys, true);
   assert.deepEqual(JSON.parse(payload.queryJson), { tag: 'two', lang: 'zh-CN' });
-  assert.equal(artifact.searchProjection.scope, 'query');
 });
 
-test('buildUrlArtifact rejects ambiguous single-pair text', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  assert.equal(buildUrlArtifact({
+test('createUrlPayload rejects ambiguous single-pair text', () => {
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  assert.equal(createUrlPayload({
     item: sampleItem,
     content: { kind: 'text', text: 'status=ready' },
-    attachments: [],
+    trigger: 'copy',
   }), null);
 });
 
@@ -165,6 +151,11 @@ test('decodeUrlPayload returns null for bad payloads', () => {
   assert.equal(decodeUrlPayload('{"kind":"other"}'), null);
   assert.equal(decodeUrlPayload(null), null);
   assert.equal(decodeUrlPayload(undefined), null);
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({ content: { kind: 'text', text: 'tag=one&tag=two' } });
+  assert.ok(payload);
+  assert.deepEqual(decodeUrlPayload(payload), payload);
+  assert.deepEqual(decodeUrlPayload(JSON.stringify(payload)), payload);
 });
 
 // ---------------------------------------------------------------------------
@@ -172,17 +163,16 @@ test('decodeUrlPayload returns null for bad payloads', () => {
 // ---------------------------------------------------------------------------
 
 test('createUrlPayload strips utm_* and fbclid from cleanHref, keeps legit params', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: {
       kind: 'text',
       text: 'https://example.com/article?utm_source=newsletter&utm_medium=email&fbclid=AbC123&id=42',
     },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.ok(artifact, 'artifact should not be null');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload, 'payload should not be null');
   // trackingParams lists only the trackers
   assert.equal(payload.trackingParams.length, 3);
   const trackerKeys = payload.trackingParams.map((p) => p.key);
@@ -200,64 +190,16 @@ test('createUrlPayload strips utm_* and fbclid from cleanHref, keeps legit param
 });
 
 test('createUrlPayload with no tracking params: trackingParams empty, cleanHref === href', () => {
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
+  const { createUrlPayload } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
+  const payload = createUrlPayload({
     item: sampleItem,
     content: {
       kind: 'text',
       text: 'https://example.com/p?page=2&lang=en',
     },
-    attachments: [],
+    trigger: 'copy',
   });
-  assert.ok(artifact, 'artifact should not be null');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload, 'payload should not be null');
   assert.deepEqual(payload.trackingParams, [], 'trackingParams should be empty');
   assert.equal(payload.cleanHref, payload.href, 'cleanHref should equal href when no trackers');
-});
-
-// ---------------------------------------------------------------------------
-// Renderer
-// ---------------------------------------------------------------------------
-
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createUrlRenderer } = require(path.resolve(root, 'src/features/url-parsed/renderer.ts'));
-  const renderer = createUrlRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.extractor',
-      attachmentType: 'plugin.extractor.url',
-      attachmentKey: 'primary',
-      payloadJson: 'not-valid-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false, 'bad payload → shouldDisplay:false');
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createUrlRenderer } = require(path.resolve(root, 'src/features/url-parsed/renderer.ts'));
-  const { buildUrlArtifact } = require(path.resolve(root, 'src/features/url-parsed/payload.ts'));
-  const artifact = buildUrlArtifact({
-    item: sampleItem,
-    content: { kind: 'text', text: sampleUrl },
-    attachments: [],
-  });
-  const renderer = createUrlRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: sampleUrl },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.extractor',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
 });

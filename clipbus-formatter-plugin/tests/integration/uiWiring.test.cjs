@@ -1,44 +1,35 @@
-const test = require("node:test");
-const assert = require("node:assert");
-const fs = require("node:fs");
-const path = require("node:path");
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const manifest = require('../../manifest.json');
 
-const ROOT = path.join(__dirname, "..", "..");
-const FEATURES = path.join(ROOT, "src", "features");
-const HOST_MAIN = path.join(ROOT, "src", "preview", "preview-host", "main.ts");
-const OLD_SHELL = path.join(ROOT, "src", "preview", "PreviewShellApp.vue");
+const root = path.resolve(__dirname, '../..');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-// Renderers intentionally using a fixed numeric manifest height (no autoFit needed).
-// PER-PLUGIN: e.g. preview → ["color-swatch","gradient-swatch"]; else [].
-const FIXED_HEIGHT = new Set([]);
-// PER-PLUGIN: false only for plugins with no renderer AND no draft action (text).
-const HAS_PREVIEWABLE_UI = true;
-
-test("preview workbench uses the SDK createPreviewWorkbench (not a hand-rolled shell)", () => {
-  assert.ok(!fs.existsSync(OLD_SHELL),
-    "PreviewShellApp.vue should be removed after migrating to createPreviewWorkbench");
-  const src = fs.readFileSync(HOST_MAIN, "utf8");
-  assert.ok(src.includes("createPreviewWorkbench"),
-    "preview-host/main.ts must call createPreviewWorkbench from @clipbus/plugin-sdk/preview");
-  if (HAS_PREVIEWABLE_UI) {
-    assert.ok(/from ["']\.\.\/\.\.\/features\//.test(src),
-      "preview-host/main.ts imports no real feature component");
+test('preview workbench mounts every real renderer component and has no action scenarios', () => {
+  const main = read('src/preview/preview-host/main.ts');
+  assert.ok(main.includes('createPreviewWorkbench'));
+  assert.ok(!fs.existsSync(path.join(root, 'src/preview/PreviewShellApp.vue')));
+  assert.ok(!fs.existsSync(path.join(root, 'src/preview/scenarios/actionScenarios.ts')));
+  assert.ok(!main.includes('actionScenarios'));
+  for (const renderer of manifest.renderers) {
+    assert.ok(main.includes(`../../features/${renderer.id}/app.vue`), renderer.id);
+    assert.ok(main.includes(`"${renderer.id}":`), renderer.id);
   }
 });
 
-test("every auto/bounded renderer calls autoFit (no clipped cards)", () => {
-  if (!fs.existsSync(FEATURES)) return;
-  for (const dir of fs.readdirSync(FEATURES)) {
-    const appVue = path.join(FEATURES, dir, "app.vue");
-    if (!fs.existsSync(appVue)) continue;
-    const src = fs.readFileSync(appVue, "utf8");
-    if (!src.includes("clipbus.item.attachment")) continue; // not a renderer
-    if (FIXED_HEIGHT.has(dir)) continue;
-    assert.ok(/autoFit\(|setHeight\(/.test(src),
-      `renderer "${dir}" never calls autoFit/setHeight — card height will clip`);
-    if (/autoFit\(/.test(src)) {
-      assert.ok(/target:/.test(src),
-        `renderer "${dir}" calls autoFit without a target — it observes document.body and runaway-loops setHeight in the preview workbench`);
-    }
+test('every renderer follows V2 card state, sizes its content and cleans up listeners', () => {
+  for (const renderer of manifest.renderers) {
+    const src = read(`src/features/${renderer.id}/app.vue`);
+    assert.ok(src.includes('useCard(attachment)'), renderer.id);
+    assert.ok(src.includes('card.attachment.value.payload'), renderer.id);
+    assert.match(src, /autoFit\(\{[^}]*target:/, renderer.id);
+    assert.ok(src.includes('stopAutoFit?.()'), renderer.id);
+    assert.ok(src.includes('useCardButton('), renderer.id);
+    assert.ok(src.includes('ctx.system.copyText'), renderer.id);
+    const main = read(`src/features/${renderer.id}/main.ts`);
+    assert.ok(main.includes('forwardConsole()'), renderer.id);
+    assert.ok(main.includes('reportInputState()'), renderer.id);
   }
 });

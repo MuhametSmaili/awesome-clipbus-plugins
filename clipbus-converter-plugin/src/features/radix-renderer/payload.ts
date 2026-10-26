@@ -2,7 +2,7 @@
 // NO `import … from "node:*"` here: this file is imported by app.vue (browser) too.
 // BigInt is used for arbitrary-precision integer parsing and conversion.
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 const ATTACHMENT_TYPE = "plugin.converter.radix";
 
@@ -81,9 +81,9 @@ export function createRadixPayload(input: unknown): RadixPayload | null {
   };
 }
 
-export function decodeRadixPayload(payloadJson: string | null | undefined): RadixPayload | null {
+export function decodeRadixPayload(value: unknown): RadixPayload | null {
   try {
-    const parsed = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const parsed = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (parsed.kind !== "radix_preview") return null;
     return parsed as RadixPayload;
   } catch {
@@ -91,17 +91,4 @@ export function decodeRadixPayload(payloadJson: string | null | undefined): Radi
   }
 }
 
-export function buildRadixArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createRadixPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "radix",
-      searchText: `${payload.decimal} ${payload.hex} ${payload.binary}`.slice(0, 200),
-      label: "Radix Conversion",
-    },
-  };
-}
+export const attachment = defineAttachment<RadixPayload>(ATTACHMENT_TYPE);

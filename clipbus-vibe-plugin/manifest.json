@@ -1,24 +1,29 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "plugin": { "id": "plugin.vibe", "title": "Vibe", "version": "0.1.0" },
   "install": { "runtime": "node", "entry": "scripts/install.mjs" },
-  "runtime": { "nodeEntry": "dist/plugin.cjs", "uiRoot": "dist/ui" },
-  "permissions": ["setAttachment"],
-  "attachmentRenderers": [
+  "runtime": { "nodeEntry": "dist/plugin.cjs" },
+  "writes": { "attachmentTypes": ["plugin.vibe.fallback"], "searchScopes": [] },
+  "renderers": [
     {
       "id": "vibe-fallback",
       "title": "Vibe",
       "attachmentType": "plugin.vibe.fallback",
-      "height": 220,
-      "uiEntry": "renderers/vibe-fallback/index.html"
+      "tint": "#7C5CFF",
+      "buttons": [
+        { "id": "particle-core", "title": "Particle Core", "enabled": true },
+        { "id": "text-reveal", "title": "Text Reveal", "enabled": true },
+        { "id": "text-loop", "title": "Text Loop", "enabled": true }
+      ],
+      "height": { "min": 220, "max": 220 },
+      "page": "dist/ui/renderers/vibe-fallback/index.html"
     }
   ],
   "detectors": [
     {
       "id": "vibe-detector",
       "title": "Vibe Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.vibe.fallback"]
+      "inputKinds": ["text"]
     }
   ],
   "actions": []

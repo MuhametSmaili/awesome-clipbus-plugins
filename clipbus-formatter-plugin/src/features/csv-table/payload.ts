@@ -1,5 +1,5 @@
 // UI-safe: no node:* imports — this file is imported by both app.vue (browser) and runtime.
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export interface CsvPayload {
   kind: "csv_table";
@@ -142,10 +142,10 @@ export function createCsvPayload(input: unknown): CsvPayload | null {
 }
 
 export function decodeCsvPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): CsvPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (p.kind !== "csv_table") return null;
     return p as CsvPayload;
   } catch {
@@ -182,17 +182,4 @@ export function buildCsvJson(payload: CsvPayload): string {
   return JSON.stringify(objects, null, 2);
 }
 
-export function buildCsvArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createCsvPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "csv",
-      searchText: payload.headers.join(" "),
-      label: "CSV",
-    },
-  };
-}
+export const attachment = defineAttachment<CsvPayload>(ATTACHMENT_TYPE);

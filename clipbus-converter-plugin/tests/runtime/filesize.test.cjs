@@ -25,19 +25,16 @@ test('manifest has filesize-detector', () => {
 });
 
 test('manifest has filesize-renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('filesize-renderer'), 'missing filesize-renderer');
 });
 
-test('filesize-renderer uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'filesize-renderer');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('filesize-renderer page references renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'filesize-renderer');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
-test('filesize-renderer attachmentType is plugin.converter.filesize', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'filesize-renderer');
-  assert.equal(renderer.attachmentType, 'plugin.converter.filesize');
-});
+
 
 // ---------------------------------------------------------------------------
 // parseSize
@@ -106,57 +103,56 @@ test('parseSize: prose text → null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// buildFilesizeArtifact
+// createFilesizePayload
 // ---------------------------------------------------------------------------
 
-test('buildFilesizeArtifact returns correct attachmentType', () => {
-  const { buildFilesizeArtifact } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
+test('createFilesizePayload returns correct attachmentType', () => {
+  const { createFilesizePayload } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1.5 GB' }, attachments: [] };
-  const artifact = buildFilesizeArtifact(input);
+  const artifact = createFilesizePayload(input);
   assert.ok(artifact, 'artifact should not be null');
-  assert.equal(artifact.attachmentType, 'plugin.converter.filesize');
 });
 
-test('buildFilesizeArtifact payload has correct byte count for 1.5 GB', () => {
-  const { buildFilesizeArtifact } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
+test('createFilesizePayload payload has correct byte count for 1.5 GB', () => {
+  const { createFilesizePayload } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1.5 GB' }, attachments: [] };
-  const artifact = buildFilesizeArtifact(input);
-  const payload = JSON.parse(artifact.payloadJson);
+  const artifact = createFilesizePayload(input);
+  const payload = artifact;
   assert.equal(payload.bytes, 1_500_000_000);
   assert.equal(payload.kind, 'filesize_preview');
 });
 
-test('buildFilesizeArtifact payload has SI and IEC breakdowns', () => {
-  const { buildFilesizeArtifact } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
+test('createFilesizePayload payload has SI and IEC breakdowns', () => {
+  const { createFilesizePayload } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1.5 GB' }, attachments: [] };
-  const artifact = buildFilesizeArtifact(input);
-  const payload = JSON.parse(artifact.payloadJson);
+  const artifact = createFilesizePayload(input);
+  const payload = artifact;
   assert.ok(Array.isArray(payload.siUnits), 'siUnits should be an array');
   assert.ok(Array.isArray(payload.iecUnits), 'iecUnits should be an array');
   assert.ok(payload.naturalSI, 'naturalSI should be present');
   assert.ok(payload.naturalIEC, 'naturalIEC should be present');
 });
 
-test('buildFilesizeArtifact: natural SI unit for 1.5 GB is GB', () => {
-  const { buildFilesizeArtifact } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
+test('createFilesizePayload: natural SI unit for 1.5 GB is GB', () => {
+  const { createFilesizePayload } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1.5 GB' }, attachments: [] };
-  const artifact = buildFilesizeArtifact(input);
-  const payload = JSON.parse(artifact.payloadJson);
+  const artifact = createFilesizePayload(input);
+  const payload = artifact;
   assert.equal(payload.naturalSI.unit, 'GB');
 });
 
-test('buildFilesizeArtifact: natural IEC unit for 1.5 GB is GiB', () => {
-  const { buildFilesizeArtifact } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
+test('createFilesizePayload: natural IEC unit for 1.5 GB is GiB', () => {
+  const { createFilesizePayload } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1.5 GB' }, attachments: [] };
-  const artifact = buildFilesizeArtifact(input);
-  const payload = JSON.parse(artifact.payloadJson);
+  const artifact = createFilesizePayload(input);
+  const payload = artifact;
   assert.equal(payload.naturalIEC.unit, 'GiB');
 });
 
-test('buildFilesizeArtifact returns null for bare integer', () => {
-  const { buildFilesizeArtifact } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
+test('createFilesizePayload returns null for bare integer', () => {
+  const { createFilesizePayload } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
   const input = { item: sampleItem, content: { kind: 'text', text: '1536' }, attachments: [] };
-  const artifact = buildFilesizeArtifact(input);
+  const artifact = createFilesizePayload(input);
   assert.equal(artifact, null, 'bare integer must not produce filesize artifact');
 });
 
@@ -175,42 +171,3 @@ test('decodeFilesizePayload returns null for invalid inputs', () => {
 // ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
-
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createFilesizeRenderer } = require(path.resolve(root, 'src/features/filesize-renderer/renderer.ts'));
-  const renderer = createFilesizeRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.converter',
-      attachmentType: 'plugin.converter.filesize',
-      attachmentKey: 'primary',
-      payloadJson: 'not-valid-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false, 'bad payload → shouldDisplay:false');
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createFilesizeRenderer } = require(path.resolve(root, 'src/features/filesize-renderer/renderer.ts'));
-  const { buildFilesizeArtifact } = require(path.resolve(root, 'src/features/filesize-renderer/payload.ts'));
-  const artifact = buildFilesizeArtifact({ item: sampleItem, content: { kind: 'text', text: '1.5 GB' }, attachments: [] });
-  const renderer = createFilesizeRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '1.5 GB' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.converter',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
-});

@@ -1,6 +1,6 @@
 # Text Tools — 文本工具
 
-九个 auto-run 文本变换 action，适用于 [Clipbus](https://clipbus.app)。
+九个文本变换 Action，适用于 [Clipbus](https://clipbus.app)。
 
 ## Action 列表
 
@@ -16,7 +16,7 @@
 | `text-pretty-json` | Pretty JSON | 解析有效 JSON，并以两个空格缩进格式化。 |
 | `text-minify-json` | Minify JSON | 解析有效 JSON，并移除无关空白。 |
 
-九个 action 均为 `auto-run`（无 UI），仅作用于 `text` 类型的剪贴板内容，直接返回变换后的文本。纯空白内容输入时返回"无内容"结果，无效 JSON 返回 `Invalid JSON`。
+九个 Action 均无 UI，对当前 `text` 值执行变换并直接返回文本。插件基于 SDK 2.0.0 与协议 V2（manifest schema 5）。纯空白内容输入时返回"无内容"结果，无效 JSON 返回 `Invalid JSON`。
 
 ## 本地开发
 

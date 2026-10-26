@@ -2,9 +2,9 @@
 
 *[English](./GUIDE.md) · 中文*
 
-本工程（`plugins/template-plugin/`）是 Clipbus 三方插件的**脚手架与可运行示例**。本文件只讲**脚手架工作流**（起步、本地开发、在 Clipbus 中调试、构建、测试）与**工程结构**。
+本工程（`clipbus-preview-plugin/`）提供颜色、渐变和 Markdown 预览，使用插件协议 V2（SDK 2.x、manifest v5）。本文件只讲**脚手架工作流**（起步、本地开发、在 Clipbus 中调试、构建、测试）与**工程结构**。
 
-**插件开发的权威知识**（架构、manifest、SDK 入口、detector/renderer/action、入参形状、RPC、权限、坑点）**随 SDK 包发布**，`npm install` 后在 `node_modules/@clipbus/plugin-sdk/docs/`——它始终对应你当前安装的 SDK 版本。
+**插件开发的权威知识**（架构、manifest、SDK 入口、detector/renderer/action、入参形状、消息、写入声明、坑点）**随 SDK 包发布**，`npm install` 后在 `node_modules/@clipbus/plugin-sdk/docs/`——它始终对应你当前安装的 SDK 版本。
 
 - **AI / 工具**：请先读本工程根目录的 [`AGENTS.md`](./AGENTS.md)，它指向 SDK 文档的稳定入口。
 - **文档地图**：`node_modules/@clipbus/plugin-sdk/docs/README.md`
@@ -37,19 +37,7 @@ npm install
 npm run dev
 ```
 
-启动 Vite 预览工作台（Preview Workbench）。工作台模拟宿主推送 bootstrap，提供两个视图：
-
-- `?view=renderer` — 预览 attachment renderer 卡片
-- `?view=action` — 预览 draft action 表单
-
-修改 `src/features/*/app.vue` 后浏览器热更新。
-
-也可以直接打开单一视图：
-
-```sh
-npm run dev:renderer
-npm run dev:action
-```
+Vite 工作台挂载真实的颜色、渐变和 Markdown 卡片。在 Scenario 中切换样例，修改组件后自动热更新。
 
 ### 在 Clipbus 中调试
 
@@ -61,7 +49,7 @@ Clipbus → Settings → Plugins → Developer Plugins 区段提供开发插件�
 
 | 按钮 | 行为 |
 |---|---|
-| **重新加载** | 重读 `manifest.json`，刷新 fingerprint / permissions / loadState。**不**重跑 install。 |
+| **重新加载** | 重读 `manifest.json`，刷新 fingerprint / writes / loadState。**不**重跑 install。 |
 | **执行安装** | 就地重跑 install hook，更新 `lastInstallExecution`。**不**重读 manifest。 |
 | **查看日志** | `installFailed` 状态下显示，打开最近一次安装日志（支持实时 tail）。 |
 
@@ -73,7 +61,7 @@ Clipbus → Settings → Plugins → Developer Plugins 区段提供开发插件�
 npm run build
 ```
 
-依次：clean → build:runtime → build:ui → verify:build，输出到 `dist/`。
+依次：typecheck → lint → clean → build:runtime → build:ui → verify:build，输出到 `dist/`。
 
 ### 校验插件
 
@@ -81,7 +69,7 @@ npm run build
 npm run verify
 ```
 
-依次执行：**manifest 校验 → 构建 → 测试**。
+依次执行：**manifest 校验 → 构建 → runtime 校验 → 测试**。
 
 manifest 校验步骤（`npm run verify:manifest`）会在构建前检查 `manifest.json` 的结构
 问题——命名空间违规、不支持的 schemaVersion、legacy 字段、非 canonical 类型等。
@@ -115,11 +103,10 @@ your-plugin/
 ├── scripts/                            ← build:runtime / build:ui / verify:build
 ├── src/
 │   ├── features/<feature-name>/        ← 每个能力一个文件夹
-│   │   ├── payload.ts                  ← 数据类型 / draft 类型
+│   │   ├── payload.ts                  ← payload 类型 / 附件契约
 │   │   ├── detector.ts                 ← detector（若有）
-│   │   ├── renderer.ts                 ← renderer runtime 端（若有）
 │   │   ├── action.ts                   ← action runtime 端（若有）
-│   │   ├── app.vue                     ← UI 入口（renderer 或 draft action）
+│   │   ├── app.vue                     ← 卡片页 UI
 │   │   ├── main.ts / index.html        ← Vite 入口
 │   ├── shared/                         ← 跨 feature 的薄工具层
 │   ├── preview/                        ← 本地预览工作台（dev-only）
@@ -127,7 +114,6 @@ your-plugin/
 └── tests/runtime/
 ```
 
-template-plugin 自带的具体 feature 列表（`preview-renderer/` / `expanded-renderer/` / `auto-action/` / `capability-gallery/`）见 [README_zh.md](./README_zh.md) "演示的能力"。
 
 > SDK 是独立包 `@clipbus/plugin-sdk`，由 codegen 同步、**不要手动改**。扩展 capability 见包内 `SPECIFICATION.md`（[`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)）Ch 3。
 

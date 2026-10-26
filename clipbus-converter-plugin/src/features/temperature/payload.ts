@@ -1,7 +1,7 @@
 // payload.ts — UI-safe single source of truth for the temperature conversion attachment.
 // NO `import … from "node:*"` here: this file is imported by app.vue (browser) too.
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.converter.temperature";
 
@@ -115,10 +115,10 @@ export function createTemperaturePayload(input: unknown): TemperaturePayload | n
 }
 
 export function decodeTemperaturePayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): TemperaturePayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (p.kind !== "temperature_preview") return null;
     return p as TemperaturePayload;
   } catch {
@@ -126,17 +126,4 @@ export function decodeTemperaturePayload(
   }
 }
 
-export function buildTemperatureArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createTemperaturePayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "converter",
-      searchText: `temperature ${payload.sourceValue} ${payload.sourceScale}`,
-      label: "Temperature",
-    },
-  };
-}
+export const attachment = defineAttachment<TemperaturePayload>(ATTACHMENT_TYPE);

@@ -1,6 +1,6 @@
 # Extractor — 提取工具
 
-Clipbus 插件，自动提取剪贴板文本中的 URL、邮箱、IP 地址，解析单个 URL 的完整结构，并内置交互式正则测试器。
+Clipbus 插件，自动提取剪贴板文本中的 URL、邮箱、IP 地址，解析单个 URL 的完整结构。
 
 ## 功能
 
@@ -17,15 +17,23 @@ Clipbus 插件，自动提取剪贴板文本中的 URL、邮箱、IP 地址，�
 
 - **检测器**（`url-detector`）：识别 URL，以及至少包含两个 `key=value` 对的裸查询字符串
 - **渲染器**（`url-parsed`）：用同一张 URL Details 卡片展示 URL 组件或查询参数；保留重复参数，并支持复制 JSON 表示
+- **跟踪参数清理**：识别 `utm_*`、`fbclid`、`gclid` 等参数，高亮展示并提供 Copy clean URL 按钮，保留业务参数。
 
-### 正则测试器（`regex-tool`）
+### IP 地址详情（`ip-*`）
 
-内置在 Clipbus 的交互式正则调试 draft action。
+检测单个 IPv4、IPv6 或 CIDR 地址。`ip-details` 卡片展示地址范围、格式转换；IPv4 CIDR 还包含子网掩码、网络地址、广播地址与可用主机数量。
 
-- **Action**（`regex-tool`，draft）：输入类型 `text`
-- 可用剪贴板文本预填测试输入
-- 输入模式和标志（`g` / `i` / `m` 等）后实时显示所有匹配、捕获组和匹配位置
-- 最多 200 条匹配；超过 20,000 字符自动截断以防冻结
+### 地理坐标（`geo-*`）
+
+检测单个经纬度对，支持十进制、角度符号与方位字母。`geo-coordinates` 卡片展示十进制、度分秒、半球及可复制的 OpenStreetMap / Google Maps 链接。
+
+### MAC 地址（`mac-*`）
+
+检测冒号、连字符或 Cisco 点分格式的 MAC 地址。`mac-address` 卡片展示五种标准化形式、OUI / NIC、单播与组播、本地与通用管理标记，以及广播地址或空地址提示。
+
+### UUID（`uuid-*`）
+
+检测标准、花括号或 URN 形式的 UUID。`uuid-details` 卡片展示规范格式、URN、版本与变体；解码 v1 / v7 时间戳及 v1 节点地址，并标注 Nil / Max UUID。
 
 ## 本地开发
 

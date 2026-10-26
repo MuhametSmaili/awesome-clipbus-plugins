@@ -12,7 +12,7 @@
  *
  * It npm-packs both versions (no install, no repo mutation) and reports:
  *   - the Overview counts (capabilities / host events) for each version
- *   - capability method names ADDED / REMOVED (set-diff of CAPABILITY_METHOD_NAMES)
+ *   - public method names ADDED / REMOVED (parsed from API.md, with count checks)
  *   - the unified diff of API.md (authoritative human-readable surface)
  *   - unified diffs for changed root Markdown references and docs/ tutorials
  *
@@ -112,19 +112,22 @@ function pack(version, destDir) {
 }
 
 function overviewCounts(apiMd) {
-  const cap = apiMd.match(/Capabilities\*\*:\s*(\d+)/)?.[1] ?? "?";
-  const ev = apiMd.match(/Host events\*\*:\s*(\d+)/)?.[1] ?? "?";
+  const cap = apiMd.match(/(?:Capabilities|Methods)\*\*:\s*(\d+)/)?.[1];
+  const ev = apiMd.match(/(?:Host events|Events)\*\*:\s*(\d+)/)?.[1];
+  if (cap === undefined || ev === undefined) throw new Error("Unrecognized API.md overview; inspect the new SDK format before classifying changes.");
   return { cap, ev };
 }
 
 function capabilityNames(sdkRoot) {
-  const f = path.join(sdkRoot, "dist", "generated", "capabilityClients.generated.d.ts");
-  const txt = existsSync(f) ? readFileSync(f, "utf8") : "";
-  // d.ts declares it with a colon + type: `CAPABILITY_METHOD_NAMES: readonly [...]`
-  // (a .js build may use `= [...]`), so accept either `:` or `=`.
-  const m = txt.match(/CAPABILITY_METHOD_NAMES\s*[:=]\s*(?:readonly\s*)?\[([^\]]*)\]/s);
-  if (!m) return new Set();
-  return new Set([...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  // API.md is the public truth source in both protocol generations. V2 no
+  // longer ships the V1 generated capability-client declaration.
+  const api = readFileSync(path.join(sdkRoot, "API.md"), "utf8");
+  const section = api.match(/## 2\. (?:Capabilities|Methods)\n([\s\S]*?)(?=\n## 3\.)/)?.[1];
+  if (section === undefined) throw new Error("Cannot locate methods in API.md");
+  const names = [...section.matchAll(/^(?:#### `|\| `)([^`]+)`/gm)].map((match) => match[1]);
+  const expected = Number(overviewCounts(api).cap);
+  if (names.length !== expected) throw new Error(`Extracted ${names.length} methods, expected ${expected}; inspect API.md format.`);
+  return new Set(names);
 }
 
 function listFiles(dir) {
@@ -215,7 +218,7 @@ function main() {
     }
     if (addedCaps.length) {
       lines.push(
-        "  ℹ ADDED capabilities are additive — verify stays GREEN even if unused. Decide per plugin whether to adopt."
+        "  ℹ ADDED method names may be new abilities or replacements across protocol versions. Read migration docs before deciding adoption."
       );
     }
 

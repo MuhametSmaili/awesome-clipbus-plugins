@@ -1,42 +1,35 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeRadixPayload } from "./payload";
+import { useCard } from "../../shared/composables/useCard";
+import { attachment, decodeRadixPayload } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the dev preview workbench document.body is the whole page, so without a target
 // autoFit never converges and spams setHeight every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const card = useCard(attachment);
 const payload = computed(() =>
-  decodeRadixPayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeRadixPayload(card.attachment.value.payload)
 );
 
 let unsub: (() => void) | null = null;
 let stopAutoFit: (() => void) | null = null;
 
 async function copyRow(value: string) {
-  await clipbus.clipboard.copyText({ text: value });
+  await ctx.system.copyText({ text: value });
 }
 
 onMounted(async () => {
   stopAutoFit = autoFit({ min: 120, max: 300, target: rootEl.value ?? undefined });
 
-  try {
-    await clipbus.attachmentRenderer.setButtons({
-      buttons: [{ id: "copy-all", title: "Copy all radix" }],
-    });
-  } catch {
-    /* not in attachment renderer context */
-  }
 
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy-all" && payload.value) {
+  unsub = ctx.renderer.onButton(async (d) => {
+    if (d.id === "copy-all" && payload.value) {
       const p = payload.value;
-      await clipbus.clipboard.copyText({
+      await ctx.system.copyText({
         text: `DEC: ${p.decimal}\nHEX: ${p.hex}\nOCT: ${p.octal}\nBIN: ${p.binary}`,
       });
     }

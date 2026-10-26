@@ -1,8 +1,5 @@
-import { actionResult } from "@clipbus/plugin-sdk/runtime";
-import type {
-  PluginAutoRunActionHandler,
-  PluginActionResolveResult,
-} from "@clipbus/plugin-sdk/runtime";
+import { result } from "@clipbus/plugin-sdk/runtime";
+import type { ActionHandler } from "@clipbus/plugin-sdk/runtime";
 import {
   toCamel,
   toConstant,
@@ -16,27 +13,19 @@ import {
   toUppercase,
 } from "./payload.ts";
 
-const resolveStub = async (): Promise<PluginActionResolveResult> => ({
-  buttons: [],
-  initialDraft: {},
-});
-
 export function createCaseAction(
   transform: (text: string) => string,
-  userMessage: string,
-): PluginAutoRunActionHandler {
-  return {
-    resolveSession: resolveStub,
-    async runAutoAction(input) {
-      if (input.content.kind !== "text" || input.content.text.length === 0) {
-        return actionResult.none({ userMessage: "Nothing to convert" });
-      }
-      return actionResult.text(transform(input.content.text), { userMessage });
-    },
+  message: string,
+): ActionHandler {
+  return async (input) => {
+    if (input.content.kind !== "text" || input.content.text.length === 0) {
+      return result.none("Nothing to convert");
+    }
+    return result.text(transform(input.content.text), message);
   };
 }
 
-export const caseActions: Record<string, PluginAutoRunActionHandler> = {
+export const caseActions: Record<string, ActionHandler> = {
   uppercase: createCaseAction(toUppercase, "Converted to uppercase"),
   lowercase: createCaseAction(toLowercase, "Converted to lowercase"),
   camelCase: createCaseAction(toCamel, "Converted to camelCase"),

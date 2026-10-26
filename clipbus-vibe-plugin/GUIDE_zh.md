@@ -1,137 +1,57 @@
-# 插件开发指南（脚手架工作流）
+# Vibe 插件开发指南
 
 *[English](./GUIDE.md) · 中文*
 
-本工程（`plugins/template-plugin/`）是 Clipbus 三方插件的**脚手架与可运行示例**。本文件只讲**脚手架工作流**（起步、本地开发、在 Clipbus 中调试、构建、测试）与**工程结构**。
+本目录是 Vibe 插件，目标版本为 `@clipbus/plugin-sdk ^2.0.0`、插件协议 V2、manifest schema 5。先读 [AGENTS.md](./AGENTS.md)，再读已安装 SDK 的 `docs/README.md` 与 `API.md`。仓库示例与 SDK 文档冲突时，以已安装版本的 API 为准。不要查看或修改 SDK 实现源码。
 
-**插件开发的权威知识**（架构、manifest、SDK 入口、detector/renderer/action、入参形状、RPC、权限、坑点）**随 SDK 包发布**，`npm install` 后在 `node_modules/@clipbus/plugin-sdk/docs/`——它始终对应你当前安装的 SDK 版本。
+## 安装与预览
 
-- **AI / 工具**：请先读本工程根目录的 [`AGENTS.md`](./AGENTS.md)，它指向 SDK 文档的稳定入口。
-- **文档地图**：`node_modules/@clipbus/plugin-sdk/docs/README.md`
-- **capability 真相源**：`node_modules/@clipbus/plugin-sdk/API.md`（generated，有冲突以它为准）
-- 通过 `npm update @clipbus/plugin-sdk` 刷新文档与能力，**无需替换本工程任何文件**。
-
-> 本工程内的代码与说明是**示例**，可能滞后于已安装的 SDK；与 SDK 文档冲突时**以 SDK 文档为准**。
-
----
-
-## 0. 快速开始
-
-### 前置条件
-
-- Node.js >= 18
-
-### 初始化
+使用已安装 SDK 要求的 Node 版本，在 `clipbus-vibe-plugin/` 中运行：
 
 ```sh
 npm install
-```
-
-依赖 `@clipbus/plugin-sdk` 是独立发布的 npm 包（三方工程通过 `npm install @clipbus/plugin-sdk` 安装）。`npm install` 会拉取并编译 SDK，完成后即可直接使用。
-
-> 所有插件作者可用的符号由 codegen 产出，列在 SDK 包的 `API.md` 与 `README.md`（见 [`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)）。**插件作者不需要查看或修改 SDK 内部源码。**
-
-### 本地开发
-
-```sh
 npm run dev
 ```
 
-启动 Vite 预览工作台。`src/preview/preview-host/main.ts` 调用 `@clipbus/plugin-sdk/preview` 的 `createPreviewWorkbench`；工作台 chrome（两级 Renderer/Action 导航，两种模式均用 scenario 下拉、4 预设主题切换器、native 卡片壳、按 view 切换的宽度滑杆、卡内按钮条）、宿主→插件 wire 注入与 `--clipbus-*` CSS 变量镜像、调用日志面板（插件→宿主的所有 native 调用）、视口高度跟踪（`clipbus.window.setHeight`）均由 SDK harness 提供。修改 `src/features/*/app.vue` 后浏览器热更新。
+SDK 预览工作台会挂载真实的 Vibe Vue 组件和 Three.js 动画。四个 scenario 保留原有的普通文本与短单词示例，并演示动画列表排序与单动画设置。工作台提供主题、宽度、宿主卡片外框和按钮、启动快照及宿主调用日志。
 
-也可以直接打开特定视图：
+scenario 中的设置使用去除插件前缀后的结构：
 
-```sh
-npm run dev:renderer
-npm run dev:action
+```ts
+settings: { animations: ["text-loop", "particle-core"] }
 ```
 
-harness 完整 API（scenario 配置、视口策略、调用日志）见 `node_modules/@clipbus/plugin-sdk/docs/preview.md`。
+宿主文件中对应的键仍为 `plugin.vibe.animations`。`ctx.settings.get<{ animations?: unknown }>()` 返回 `{ values }`，读取 `values.animations`。宿主文件位置与动画行为见 [README_zh.md](./README_zh.md)。
 
-### 在 Clipbus 中调试
+## Runtime 与卡片接线
 
-Clipbus → Settings → Plugins → Developer Plugins 区段提供开发插件生命周期管理：
+detector 从 `input.item.attachments` 读取 `{ type, key, updatedAt, own }` 引用。存在其他插件的引用时，本次不写入；只有自身引用时，recopy 仍完整重写。成功且不写入会清空此 detector 上次的产出。判断依据为本次快照；其他 detector 此后写入的附件会在下次检测时参与判断。
 
-1. **Add Path** — 选择含 `manifest.json` 的目录（即 `sourceRootPath`）。
-2. 若 `manifest.json` 声明了 `install` 字段，Clipbus **自动执行安装脚本**，工作目录为 `sourceRootPath`。`node_modules/` 等产物落到工程目录（等价于你手动 `npm install`）。
-3. 安装日志写入 `<AppData>/development-plugins/<pluginID>/install-logs/`，不会污染你的 git status。
+`payload.ts` 定义类型化附件契约与纯 payload 函数。detector 必须 await `vibeAttachment.set(ctx, [{ key, payload }])`。附件类型声明在 `writes.attachmentTypes`；Vibe 不写搜索扩展。
 
-| 按钮 | 行为 |
-|---|---|
-| **重新加载** | 重读 `manifest.json`，刷新 fingerprint / permissions / loadState。**不**重跑 install。 |
-| **执行安装** | 就地重跑 install hook，更新 `lastInstallExecution`。**不**重读 manifest。 |
-| **查看日志** | `installFailed` 状态下显示，打开最近一次安装日志（支持实时 tail）。 |
+manifest 声明 renderer 的页面、标题、颜色、按钮与固定高度 `{ min: 220, max: 220 }`。卡片无需注册 Runtime handler。页面从 `@clipbus/plugin-sdk/view` 导入 `ctx`，通过 `useCard(vibeAttachment)` 获取启动数据并订阅条目与环境事件。按钮使用 `ctx.renderer.update` 发布，点击事件通过 `ctx.renderer.onButton` 的 `event.id` 识别。卸载时取消订阅并释放当前动画资源。
 
-状态：`installing` → 安装中；`installFailed` → 退出码非 0 或 runtime 不可达；`ready` → 可用。
-
-### 生产构建
-
-```sh
-npm run build
-```
-
-依次：clean → build:runtime → build:ui → verify:build，输出到 `dist/`。
-
-### 校验插件
+## 构建与校验
 
 ```sh
 npm run verify
 ```
 
-依次执行：**manifest 校验 → 构建 → 测试**。
+依次执行 manifest 校验、类型检查、lint、Runtime/UI 构建、构建接线检查、产物 manifest 校验与 Node 测试。测试保留 payload 和动画切换业务向量，通过 `tests/support/plugin.cjs` 运行构建后的 detector，并使用 SDK 的 `computeBootstrap` 校验真实 V2 scenario。
 
-manifest 校验步骤（`npm run verify:manifest`）会在构建前检查 `manifest.json` 的结构
-问题——命名空间违规、不支持的 schemaVersion、legacy 字段、非 canonical 类型等。
-这些错误与宿主安装时的校验规则一致，开发期即可拦截。
+`npm run build` 会在当前目录重建 Clipbus 实际加载的 `dist/`。`npm test` 需要先生成 Runtime 产物。共享 UI 构建和验证脚本由 manifest 驱动；公共基础设施的改动应交给仓库的维护源处理。
 
-也可以单独运行 manifest 校验：
+## 在 Clipbus 中调试
 
-```sh
-npm run verify:manifest
-# 或直接调用 SDK 命令行：
-npx clipbus-validate-manifest .
-npx clipbus-validate-manifest . --runtime  # 额外检查构建产物是否存在
-```
+1. 打开 Settings → Plugins → Developer Plugins → Add Path，选择本目录。
+2. Reload 重读 manifest；Run Install 重跑安装钩子。
+3. 源码修改后，在本目录重建 `dist/` 并重新加载。跨插件检测顺序需在真实宿主确认。
 
-### 测试
+## 文件结构
 
-```sh
-npm test         # tests/runtime/ 集成测试
-```
-
----
-
-## 1. 工程结构
-
-新插件按 feature 切分，每个 feature 一个自洽目录。推荐布局：
-
-```text
-your-plugin/
-├── manifest.json
-├── package.json                        ← 依赖 @clipbus/plugin-sdk（npm 安装）
-├── scripts/                            ← build:runtime / build:ui / verify:build
-├── src/
-│   ├── features/<feature-name>/        ← 每个能力一个文件夹
-│   │   ├── payload.ts                  ← 数据类型 / draft 类型
-│   │   ├── detector.ts                 ← detector（若有）
-│   │   ├── renderer.ts                 ← renderer runtime 端（若有）
-│   │   ├── action.ts                   ← action runtime 端（若有）
-│   │   ├── app.vue                     ← UI 入口（renderer 或 draft action）
-│   │   ├── main.ts / index.html        ← Vite 入口
-│   ├── shared/                         ← 跨 feature 的薄工具层
-│   ├── preview/                        ← 本地预览工作台（dev-only）
-│   └── plugin.ts                       ← definePlugin 入口；注册所有 handler
-└── tests/runtime/
-```
-
-template-plugin 自带的具体 feature 列表（`preview-renderer/` / `expanded-renderer/` / `auto-action/` / `capability-gallery/`）见 [README_zh.md](./README_zh.md) "演示的能力"。
-
-> SDK 是独立包 `@clipbus/plugin-sdk`，由 codegen 同步、**不要手动改**。扩展 capability 见包内 `SPECIFICATION.md`（[`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)）Ch 3。
-
----
-
-## 接下来
-
-脚手架工作流就这些。**插件实现的全部知识在 SDK 文档**——见根目录 [`AGENTS.md`](./AGENTS.md)，或直接打开 `node_modules/@clipbus/plugin-sdk/docs/README.md`（文档地图）与 `node_modules/@clipbus/plugin-sdk/API.md`（capability 真相源）。
-
-
+- `manifest.json`：插件身份、写入声明、detector 与卡片默认值。
+- `src/plugin.ts`：Runtime detector 注册。
+- `src/features/vibe-fallback/`：附件契约、detector、卡片、切换逻辑和三种动画实现。
+- `src/shared/composables/useCard.ts`：共享 V2 卡片订阅。
+- `src/preview/`：真实预览场景与组件挂载。
+- `tests/runtime/`、`tests/integration/`、`tests/support/`：业务校验、预览验证与 Runtime harness。

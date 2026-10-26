@@ -2,7 +2,7 @@
 // NO `import … from "node:*"` here: this file is imported by app.vue (browser) too.
 // Uses only cross-platform globals: atob, TextEncoder, TextDecoder, decodeURIComponent.
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.decoder.datauri";
 
@@ -152,9 +152,9 @@ export function createDataUriPayload(input: unknown): DataUriPayload | null {
   };
 }
 
-export function decodeDataUriPayload(payloadJson: string | null | undefined): DataUriPayload | null {
+export function decodeDataUriPayload(value: unknown): DataUriPayload | null {
   try {
-    const parsed = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const parsed = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (parsed.kind !== "data_uri_preview") return null;
     return parsed as DataUriPayload;
   } catch {
@@ -162,17 +162,4 @@ export function decodeDataUriPayload(payloadJson: string | null | undefined): Da
   }
 }
 
-export function buildDataUriArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createDataUriPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "decoder",
-      searchText: `data uri ${payload.mediaType} ${payload.encodingLabel}`,
-      label: "Data URI",
-    },
-  };
-}
+export const attachment = defineAttachment<DataUriPayload>(ATTACHMENT_TYPE);

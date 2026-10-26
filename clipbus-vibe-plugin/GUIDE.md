@@ -1,136 +1,57 @@
-# Plugin Development Guide (Scaffold Workflow)
+# Vibe Plugin Development Guide
 
 *English · [中文](./GUIDE_zh.md)*
 
-This project (`plugins/template-plugin/`) is the **scaffold and runnable example** for Clipbus third-party plugins. This file covers only the **scaffold workflow** (getting started, local development, debugging inside Clipbus, building, testing) and the **project structure**.
+This directory is the Vibe plugin. It targets `@clipbus/plugin-sdk ^2.0.0`, plugin protocol V2 and manifest schema 5. Read [AGENTS.md](./AGENTS.md), then the installed SDK's `docs/README.md` and `API.md`. The installed API reference takes precedence over repository examples. Do not inspect or modify SDK implementation source.
 
-**The authoritative knowledge for plugin development** (architecture, manifest, SDK entry points, detector/renderer/action, input shapes, RPC, permissions, pitfalls) **ships with the SDK package**. After `npm install` it lives in `node_modules/@clipbus/plugin-sdk/docs/` — and always matches the SDK version you currently have installed.
+## Install and preview
 
-- **AI / tools**: read this project's root [`AGENTS.md`](./AGENTS.md) first; it points to the stable entry point of the SDK docs.
-- **Documentation map**: `node_modules/@clipbus/plugin-sdk/docs/README.md`
-- **Capability source of truth**: `node_modules/@clipbus/plugin-sdk/API.md` (generated; in case of conflict, it wins)
-- Refresh the docs and capabilities via `npm update @clipbus/plugin-sdk` — **no need to replace any file in this project**.
-
-> The code and notes inside this project are **examples** and may lag behind the installed SDK; when they conflict with the SDK docs, **the SDK docs win**.
-
----
-
-## 0. Quick start
-
-### Prerequisites
-
-- Node.js >= 18
-
-### Initialize
+Use the Node version required by the installed SDK. Run these commands in `clipbus-vibe-plugin/`:
 
 ```sh
 npm install
-```
-
-The dependency `@clipbus/plugin-sdk` is an independently published npm package (third-party projects install it via `npm install @clipbus/plugin-sdk`). `npm install` fetches and compiles the SDK; once it finishes, you can use it directly.
-
-> All symbols available to plugin authors are produced by codegen and listed in the SDK package's `API.md` and `README.md` (see [`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)). **Plugin authors do not need to view or modify the SDK's internal source.**
-
-### Local development
-
-```sh
 npm run dev
 ```
 
-Starts the Vite preview workbench. `src/preview/preview-host/main.ts` calls `createPreviewWorkbench` from `@clipbus/plugin-sdk/preview`; the SDK harness provides the workbench chrome (two-level Renderer/Action navigation with a scenario dropdown for both modes, 4-preset theme switcher, native card shell, per-view width slider, in-card button strip), host→plugin wire injection and `--clipbus-*` CSS variable mirroring, call log panel (all plugin→host native calls), and viewport height tracking via `clipbus.window.setHeight`. Editing `src/features/*/app.vue` triggers a hot-reload.
+The SDK preview workbench mounts the actual Vibe Vue component and Three.js animations. Its four scenarios retain the original plain-text and short-word examples and demonstrate an ordered animation list and a single-animation setting. The workbench provides theme and width controls, the native card shell and buttons, startup snapshots and a host-call log.
 
-You can also open a targeted view directly:
+Settings in a preview scenario use the plugin-local shape:
 
-```sh
-npm run dev:renderer
-npm run dev:action
+```ts
+settings: { animations: ["text-loop", "particle-core"] }
 ```
 
-For the full harness API (scenario configuration, viewport policy, call log), see `node_modules/@clipbus/plugin-sdk/docs/preview.md`.
+The host stores the same setting under `plugin.vibe.animations`. `ctx.settings.get<{ animations?: unknown }>()` returns `{ values }`; read `values.animations`. See [README.md](./README.md) for the host file location and animation behavior.
 
-### Debugging inside Clipbus
+## Runtime and card wiring
 
-Clipbus → Settings → Plugins → the Developer Plugins section provides lifecycle management for development plugins:
+The detector reads `input.item.attachments`, whose entries are references `{ type, key, updatedAt, own }`. Foreign references cause the detector to yield without writing. Own references allow a complete write on recopy. Successful no-write calls clear the detector's previous output. The snapshot check cannot account for another detector's later writes until the next detection.
 
-1. **Add Path** — select the directory containing `manifest.json` (i.e. the `sourceRootPath`).
-2. If `manifest.json` declares an `install` field, Clipbus **runs the install script automatically**, with the working directory set to `sourceRootPath`. Artifacts such as `node_modules/` land in the project directory (equivalent to running `npm install` yourself).
-3. Install logs are written to `<AppData>/development-plugins/<pluginID>/install-logs/` and will not pollute your git status.
+`payload.ts` defines the typed attachment contract and pure payload functions. The detector awaits `vibeAttachment.set(ctx, [{ key, payload }])`. Its type is declared in `writes.attachmentTypes`; Vibe writes no search extensions.
 
-| Button | Behavior |
-|---|---|
-| **Reload** | Re-reads `manifest.json`, refreshing fingerprint / permissions / loadState. Does **not** re-run install. |
-| **Run Install** | Re-runs the install hook in place and updates `lastInstallExecution`. Does **not** re-read the manifest. |
-| **View Logs** | Shown in the `installFailed` state; opens the most recent install log (supports live tail). |
+The manifest declares the renderer page, title, tint, buttons and fixed height `{ min: 220, max: 220 }`. Cards have no Runtime registry entry. The page imports `ctx` from `@clipbus/plugin-sdk/view` and uses `useCard(vibeAttachment)` for startup data and item/environment events. It publishes buttons through `ctx.renderer.update` and reads `event.id` from `ctx.renderer.onButton`. Unmounting cancels subscriptions and disposes the active animation.
 
-States: `installing` → installing; `installFailed` → non-zero exit code or runtime unreachable; `ready` → usable.
-
-### Production build
-
-```sh
-npm run build
-```
-
-In order: clean → build:runtime → build:ui → verify:build, output to `dist/`.
-
-### Verifying your plugin
+## Build and verify
 
 ```sh
 npm run verify
 ```
 
-Runs in order: **manifest validation → build → tests**.
+This runs manifest validation, type checking, lint, Runtime/UI builds, build wiring checks, built-manifest validation and Node tests. Tests preserve payload and animation-switching vectors, run the built detector through `tests/support/plugin.cjs`, and validate real V2 scenarios with the SDK's `computeBootstrap`.
 
-The manifest validation step (`npm run verify:manifest`) checks your `manifest.json`
-for structural issues — namespace violations, unsupported schema versions, legacy fields,
-unrecognised item types, and more — before the build runs. This catches errors early,
-the same ones the host validates at install time.
+`npm run build` rebuilds `dist/` in this directory, which is the path Clipbus loads. `npm test` requires built Runtime artifacts. The shared UI build and verification scripts are manifest-driven; changes to shared infrastructure belong in the repository's maintained sources.
 
-You can also run manifest validation alone:
+## Debug inside Clipbus
 
-```sh
-npm run verify:manifest
-# or directly via the SDK binary:
-npx clipbus-validate-manifest .
-npx clipbus-validate-manifest . --runtime  # also checks built file existence
-```
+1. Open Settings → Plugins → Developer Plugins → Add Path and select this directory.
+2. Reload rereads the manifest. Run Install reruns the installation hook.
+3. After source edits, rebuild this directory's `dist/` and reload. Verify cross-plugin detection ordering in the actual host.
 
-### Testing
+## Files
 
-```sh
-npm test         # integration tests under tests/runtime/
-```
-
----
-
-## 1. Project structure
-
-A new plugin is split by feature, each feature a self-contained directory. Recommended layout:
-
-```text
-your-plugin/
-├── manifest.json
-├── package.json                        ← depends on @clipbus/plugin-sdk (npm install)
-├── scripts/                            ← build:runtime / build:ui / verify:build
-├── src/
-│   ├── features/<feature-name>/        ← one folder per capability
-│   │   ├── payload.ts                  ← data types / draft types
-│   │   ├── detector.ts                 ← detector (if any)
-│   │   ├── renderer.ts                 ← renderer runtime side (if any)
-│   │   ├── action.ts                   ← action runtime side (if any)
-│   │   ├── app.vue                     ← UI entry (renderer or draft action)
-│   │   ├── main.ts / index.html        ← Vite entry
-│   ├── shared/                         ← thin utility layer across features
-│   ├── preview/                        ← local preview workbench (dev-only)
-│   └── plugin.ts                       ← definePlugin entry; registers all handlers
-└── tests/runtime/
-```
-
-For template-plugin's concrete feature list (`preview-renderer/` / `expanded-renderer/` / `auto-action/` / `capability-gallery/`), see the "Capabilities demonstrated" section in [README.md](./README.md).
-
-> The SDK is a standalone package `@clipbus/plugin-sdk`, synced by codegen — **do not edit it by hand**. To extend capabilities see the package's `SPECIFICATION.md` ([`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)), Ch 3.
-
----
-
-## Next steps
-
-That's all for the scaffold workflow. **All the knowledge for implementing a plugin lives in the SDK docs** — see the root [`AGENTS.md`](./AGENTS.md), or open `node_modules/@clipbus/plugin-sdk/docs/README.md` (documentation map) and `node_modules/@clipbus/plugin-sdk/API.md` (capability source of truth) directly.
+- `manifest.json`: plugin identity, declared writes, detector and card defaults.
+- `src/plugin.ts`: Runtime detector registration.
+- `src/features/vibe-fallback/`: payload contract, detector, card, switching logic and the three animation implementations.
+- `src/shared/composables/useCard.ts`: shared V2 card subscriptions.
+- `src/preview/`: real preview scenarios and component mounting.
+- `tests/runtime/`, `tests/integration/`, `tests/support/`: business checks, preview validation and Runtime harness.

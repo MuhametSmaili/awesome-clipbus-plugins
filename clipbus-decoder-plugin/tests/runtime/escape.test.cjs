@@ -9,6 +9,8 @@ const root = path.resolve(__dirname, "..", "..");
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, "manifest.json"), "utf8"));
 const transforms = require(path.resolve(root, "src/features/escape-tool/payload.ts"));
 
+const { setupPlugin, fakeHost, itemSnapshot, imageContent } = require("../support/plugin.cjs");
+
 const actionIDs = [
   "url-encode",
   "url-decode",
@@ -22,47 +24,57 @@ const actionIDs = [
   "json-unescape",
 ];
 
-test("manifest exposes ten independent auto-run transformations", () => {
+test("manifest exposes ten independent transformations", () => {
   assert.deepEqual((manifest.actions ?? []).map((action) => action.id), actionIDs);
   for (const action of manifest.actions) {
-    assert.equal(action.lifecycle, "auto-run");
-    assert.equal(action.uiEntry, undefined);
-    assert.deepEqual(action.supportedInputKinds, ["text"]);
+    assert.equal(action.lifecycle, undefined);
+    assert.equal(action.page, undefined);
+    assert.deepEqual(action.inputKinds, ["text"]);
   }
 });
 
-test("actions transform current cascade content", async () => {
-  const { escapeActions } = require(path.resolve(root, "src/features/escape-tool/action.ts"));
+test("actions transform current cascade content", async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const escapeActions = registry.actions;
   assert.deepEqual(Object.keys(escapeActions), actionIDs);
 
-  const encoded = await escapeActions["url-encode"].runAutoAction({
+  const encoded = await escapeActions["url-encode"]({
+    item: itemSnapshot("text"),
     content: { kind: "text", text: "a b&c" },
-  });
-  assert.equal(encoded.result.resultKind, "text");
+  }, host.ctx);
+  assert.equal(encoded.result.kind, "text");
   assert.equal(encoded.result.text, "a%20b%26c");
 
-  const decoded = await escapeActions["url-decode"].runAutoAction({
+  const decoded = await escapeActions["url-decode"]({
+    item: itemSnapshot("text"),
     content: { kind: "text", text: encoded.result.text },
-  });
+  }, host.ctx);
   assert.equal(decoded.result.text, "a b&c");
 });
 
-test("decode actions reject malformed input without producing placeholder text", async () => {
-  const { escapeActions } = require(path.resolve(root, "src/features/escape-tool/action.ts"));
-  const badUrl = await escapeActions["url-decode"].runAutoAction({
+test("decode actions reject malformed input without producing placeholder text", async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const escapeActions = registry.actions;
+  const badUrl = await escapeActions["url-decode"]({
+    item: itemSnapshot("text"),
     content: { kind: "text", text: "%ZZ" },
-  });
-  const badBase64 = await escapeActions["base64-decode"].runAutoAction({
+  }, host.ctx);
+  const badBase64 = await escapeActions["base64-decode"]({
+    item: itemSnapshot("text"),
     content: { kind: "text", text: "%%%" },
-  });
-  assert.equal(badUrl.result.resultKind, "none");
-  assert.equal(badBase64.result.resultKind, "none");
+  }, host.ctx);
+  assert.equal(badUrl.result.kind, "none");
+  assert.equal(badBase64.result.kind, "none");
 });
 
-test("actions ignore non-text current cascade content", async () => {
-  const { escapeActions } = require(path.resolve(root, "src/features/escape-tool/action.ts"));
-  const result = await escapeActions["html-encode"].runAutoAction({ content: { kind: "image" } });
-  assert.equal(result.result.resultKind, "none");
+test("actions ignore non-text current cascade content", async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const escapeActions = registry.actions;
+  const result = await escapeActions["html-encode"]({ item: itemSnapshot("image"), content: imageContent }, host.ctx);
+  assert.equal(result.result.kind, "none");
 });
 
 test("URL encode and decode round-trip", () => {

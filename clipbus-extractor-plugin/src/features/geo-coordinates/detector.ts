@@ -1,15 +1,15 @@
-import type {
-  PluginDetectorHandler,
-  PluginDetectorInput,
-  PluginDetectorArtifact,
-} from "@clipbus/plugin-sdk/runtime";
-import { buildGeoArtifact } from "./payload.ts";
+import type { DetectorHandler } from "@clipbus/plugin-sdk/runtime";
+import { attachment, createGeoPayload } from "./payload.ts";
 
-export function createGeoDetector(): PluginDetectorHandler {
-  return {
-    async detect(input: PluginDetectorInput): Promise<PluginDetectorArtifact[]> {
-      const artifact = buildGeoArtifact(input);
-      return artifact ? [artifact] : [];
-    },
+export function createGeoDetector(): DetectorHandler {
+  return async (input, ctx) => {
+    const payload = createGeoPayload(input);
+    if (payload === null) return;
+    await attachment.set(ctx, [{ key: "primary", payload }]);
+    const searchText = `${payload.lat},${payload.lng} coordinates geo`;
+    await ctx.item.setSearchExtension({
+      scope: "extractor",
+      entries: [{ key: "primary", text: searchText, label: "Coordinates" }],
+    });
   };
 }

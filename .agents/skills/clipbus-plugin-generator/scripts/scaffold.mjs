@@ -126,104 +126,38 @@ async function writeText(filePath, content) {
 function minimalPluginTs() {
   return `import { definePlugin } from "@clipbus/plugin-sdk/runtime";
 
-export default definePlugin({
-  setup() {
-    return {
-      attachmentRenderers: {},
-      detectors: {},
-      actions: {},
-      messageHandlers: {},
-    };
-  },
-});
+export default definePlugin({ detectors: {}, actions: {}, messages: [] });
 `;
 }
 
 function minimalAttachmentScenariosTs() {
-  return `// Attachment preview scenarios for the dev workbench (createPreviewWorkbench).
-// Add one PreviewScenario per attachment renderer feature, then import its app.vue
-// in preview-host/main.ts and map it in COMPONENTS by view (= feature dir name).
-//
-// Shape (authoritative: @clipbus/plugin-sdk docs/preview.md):
-//   { id, label, mode: "attachmentRenderer", pluginID: "<your plugin.id>",
-//     accentHex, view: "<feature-dir>",
-//     viewport: { heightPolicy: "bounded", min, max },   // match the manifest height
-//     item: { id, type: "text", tags: [], sourceAppID: "com.preview.editor" },
-//     attachment: { item, attachment: { historyID, owner: "<plugin.id>",
-//       attachmentType: "<from manifest>", attachmentKey: "primary", payloadJson } } }
-
+  return `// Add one real V2 card scenario per renderer; see SDK docs/preview.md.
+// Use this plugin's identity, item snapshot and structured attachment.payload.
 import type { PreviewScenario } from "@clipbus/plugin-sdk/preview";
 
 export const attachmentScenarios: PreviewScenario[] = [];
 `;
 }
 
-function minimalActionScenariosTs() {
-  return `// Action preview scenarios for the dev workbench (createPreviewWorkbench).
-// Add one PreviewScenario per draft action feature, then import its app.vue in
-// preview-host/main.ts and map it in COMPONENTS by view (= feature dir name).
-//
-// Shape (authoritative: @clipbus/plugin-sdk docs/preview.md):
-//   { id, label, mode: "action", pluginID: "<your plugin.id>", view: "<feature-dir>",
-//     viewport: { heightPolicy: "fixed", height: 320 },
-//     item: { id, type: "text", tags: [], sourceAppID: "com.preview.editor" },
-//     actionInput: { kind: "text", text: "current cascade value" },
-//     draft: { ...INITIAL_DRAFT },
-//     buttons: [{ id, title, isEnabled }], defaultButtonID: "<id>" }
-
-import type { PreviewScenario } from "@clipbus/plugin-sdk/preview";
-
-export const actionScenarios: PreviewScenario[] = [];
-`;
-}
-
 function minimalPreviewHostMainTs() {
-  // Returns the dev preview entry. createPreviewWorkbench (SDK 0.8.5+) owns the whole
-  // workbench: scenario picker, themes, native card shell, fake host, wire injection.
-  // The author only imports each feature's app.vue and maps it by `view`. Works with
-  // zero features (shows a hint) so `npm run dev` never breaks on a fresh scaffold.
   return `import { createPreviewWorkbench } from "@clipbus/plugin-sdk/preview";
 import { createApp, h, type Component } from "vue";
 import "../../shared/base.css";
 import { attachmentScenarios } from "../scenarios/attachmentScenarios";
-import { actionScenarios } from "../scenarios/actionScenarios";
 
-/* PER-PLUGIN: import each feature's app.vue, then map it below by feature dir.
-   import MyRenderer from "../../features/<renderer-dir>/app.vue";
-   import MyAction   from "../../features/<action-dir>/app.vue";                 */
-const COMPONENTS: Record<string, Component> = {
-  // "<feature-dir>": MyRenderer,   // key === PreviewScenario.view
-};
-
-const scenarios = [...attachmentScenarios, ...actionScenarios];
+// Import each renderer app.vue and map it by scenario.view (the feature id).
+const COMPONENTS: Record<string, Component> = {};
 const root = document.getElementById("app")!;
 
-if (scenarios.length === 0) {
-  // No previewable features yet. Add one, register a scenario in
-  // src/preview/scenarios/, import its app.vue above, and map it in COMPONENTS.
-  createApp({
-    render: () =>
-      h(
-        "main",
-        { style: "padding:24px;font:13px/1.6 system-ui,sans-serif;color:var(--clipbus-text-secondary,#475569)" },
-        "No previewable features yet. Add one, register a scenario in src/preview/scenarios/, import its app.vue in preview-host/main.ts, and map it in COMPONENTS by its view (feature dir name).",
-      ),
-  }).mount(root);
+if (attachmentScenarios.length === 0) {
+  createApp({ render: () => h("main", "No card pages to preview. Runtime Actions are tested in Clipbus.") }).mount(root);
 } else {
   createPreviewWorkbench(root, {
-    scenarios,
+    scenarios: attachmentScenarios,
     mount(slotEl, { scenario }) {
-      const Comp =
-        COMPONENTS[scenario.view ?? ""] ??
-        ({
-          render: () =>
-            h(
-              "div",
-              { style: "padding:16px;font:13px system-ui;color:var(--clipbus-text-secondary,#475569)" },
-              "No component mapped for view: " + (scenario.view ?? "") + ". Import its app.vue and add it to COMPONENTS.",
-            ),
-        } as Component);
-      const app = createApp(Comp);
+      const component = COMPONENTS[scenario.view ?? ""];
+      if (component === undefined) throw new Error("No card component for " + scenario.view);
+      const app = createApp(component);
       app.mount(slotEl);
       return () => app.unmount();
     },
@@ -279,20 +213,16 @@ async function main() {
   process.stderr.write(`scaffold: creating ${pluginDirName} in ${repoRoot}\n`);
 
   // ── Step 1: Copy template-plugin (excluding node_modules and dist) ──────────
-  await copyDir(templateDir, targetDir, new Set(["node_modules", "dist"]));
+  await copyDir(templateDir, targetDir, new Set(["node_modules", "dist", ".git", ".omc", "package-lock.json"]));
   process.stderr.write(`scaffold: [1/8] copied template-plugin → ${pluginDirName}\n`);
 
   // ── Step 2: Delete template-specific feature directories and test files ──────
-  const featureDirsToDelete = [
-    "capability-gallery",
-    "preview-renderer",
-    "expanded-renderer",
-    "auto-action",
-  ];
-  for (const dir of featureDirsToDelete) {
-    await rmDir(path.join(targetDir, "src", "features", dir));
+  await rmDir(path.join(targetDir, "src", "features"));
+  await mkdir(path.join(targetDir, "src", "features"), { recursive: true });
+  for (const file of ["src/shared/debug.ts", "src/shared/display.ts", "src/shared/digest.ts", "tests/support/png.cjs"]) {
+    await rmDir(path.join(targetDir, file));
   }
-  // Remove .test.cjs files (keep tests/setup.cjs)
+  // Keep the generic built-runtime test harness, remove template test cases.
   await deleteMatchingFiles(
     path.join(targetDir, "tests"),
     (name) => name.endsWith(".test.cjs")
@@ -325,7 +255,7 @@ async function main() {
     await readFile(path.join(templateDir, "manifest.json"), "utf8")
   );
   const newManifest = {
-    schemaVersion: templateManifest.schemaVersion ?? 4,
+    schemaVersion: templateManifest.schemaVersion ?? 5,
     plugin: {
       id: pluginId,
       title,
@@ -333,9 +263,9 @@ async function main() {
     },
     install: templateManifest.install,
     runtime: templateManifest.runtime,
-    permissions: [],
     detectors: [],
-    attachmentRenderers: [],
+    renderers: [],
+    writes: { attachmentTypes: [], searchScopes: [] },
     actions: [],
   };
   await writeJson(path.join(targetDir, "manifest.json"), newManifest);
@@ -353,16 +283,25 @@ async function main() {
     minimalAttachmentScenariosTs()
   );
   await writeText(
-    path.join(targetDir, "src", "preview", "scenarios", "actionScenarios.ts"),
-    minimalActionScenariosTs()
-  );
-  await writeText(
     path.join(targetDir, "src", "preview", "preview-host", "main.ts"),
     minimalPreviewHostMainTs()
   );
   // Defensive: drop any stale hand-rolled shell (pre-0.8.5 templates shipped one).
   await rmDir(path.join(targetDir, "src", "preview", "PreviewShellApp.vue"));
   process.stderr.write(`scaffold: [7/8] replaced preview scenarios + preview-host/main.ts\n`);
+
+  await mkdir(path.join(targetDir, "tests", "runtime"), { recursive: true });
+  await writeText(path.join(targetDir, "tests", "runtime", "plugin.test.cjs"), `const test = require("node:test");
+const assert = require("node:assert/strict");
+const { manifest, setupPlugin } = require("../support/plugin.cjs");
+
+test("built runtime registers the declared detector and Action handlers", async t => {
+  const { registry } = await setupPlugin(t);
+  for (const kind of ["detectors", "actions"]) {
+    assert.deepEqual(Object.keys(registry[kind] ?? {}).sort(), (manifest[kind] ?? []).map(entry => entry.id).sort());
+  }
+});
+`);
 
   // ── Step 8: Confirm preserved files ─────────────────────────────────────────
   // (src/shared/, tsconfig.json, vite.config.mjs, eslint.config.mjs, env.d.ts,

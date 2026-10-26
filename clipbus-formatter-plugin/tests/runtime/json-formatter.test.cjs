@@ -6,13 +6,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '../..');
+const { attachment } = require(path.join(root, "src/features/json-renderer/payload.ts"));
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, 'manifest.json'), 'utf8'));
 
 const sampleItem = {
   id: 'item-1',
-  type: 'text',
+  kind: 'text',
   tags: [],
-  sourceAppID: 'com.example.app',
+  sourceApp: 'com.example.app',
 };
 
 // ---------------------------------------------------------------------------
@@ -25,13 +26,13 @@ test('manifest has json-detector', () => {
 });
 
 test('manifest has json-renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('json-renderer'), 'missing json-renderer');
 });
 
-test('json-renderer uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'json-renderer');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('json-renderer page references renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'json-renderer');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -39,16 +40,14 @@ test('json-renderer uiEntry references renderers/ path', () => {
 // ---------------------------------------------------------------------------
 
 test('detector detects minified JSON object and formats it', async () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
   const input = {
     item: sampleItem,
     content: { kind: 'text', text: '{"name":"Alice","age":30}' },
-    attachments: [],
   };
-  const artifact = buildJsonArtifact(input);
-  assert.ok(artifact, 'artifact should not be null for valid JSON');
-  assert.equal(artifact.attachmentType, 'plugin.formatter.json');
-  const payload = JSON.parse(artifact.payloadJson);
+  const payload = createJsonPayload(input);
+  assert.ok(payload, 'payload should not be null for valid JSON');
+  assert.equal(attachment.type, 'plugin.formatter.json');
   assert.equal(payload.kind, 'json_formatter_preview');
   assert.equal(payload.topLevelType, 'object');
   assert.equal(payload.topLevelCount, 2);
@@ -56,47 +55,42 @@ test('detector detects minified JSON object and formats it', async () => {
 });
 
 test('detector detects JSON array', async () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
   const input = {
     item: sampleItem,
     content: { kind: 'text', text: '[1, 2, 3]' },
-    attachments: [],
   };
-  const artifact = buildJsonArtifact(input);
-  assert.ok(artifact, 'should detect JSON array');
-  const payload = JSON.parse(artifact.payloadJson);
+  const payload = createJsonPayload(input);
+  assert.ok(payload, 'should detect JSON array');
   assert.equal(payload.topLevelType, 'array');
   assert.equal(payload.topLevelCount, 3);
 });
 
 test('detector ignores plain text', () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
-  const artifact = buildJsonArtifact({
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const payload = createJsonPayload({
     item: sampleItem,
     content: { kind: 'text', text: 'hello world' },
-    attachments: [],
   });
-  assert.equal(artifact, null, 'plain text should not be detected as JSON');
+  assert.equal(payload, null, 'plain text should not be detected as JSON');
 });
 
 test('detector ignores invalid JSON', () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
-  const artifact = buildJsonArtifact({
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const payload = createJsonPayload({
     item: sampleItem,
     content: { kind: 'text', text: '{bad json}' },
-    attachments: [],
   });
-  assert.equal(artifact, null, 'invalid JSON should not be detected');
+  assert.equal(payload, null, 'invalid JSON should not be detected');
 });
 
 test('detector ignores image content kind', () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
-  const artifact = buildJsonArtifact({
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const payload = createJsonPayload({
     item: sampleItem,
     content: { kind: 'image', width: 100, height: 100, format: 'png', bytes: 0 },
-    attachments: [],
   });
-  assert.equal(artifact, null, 'image kind should not produce JSON artifact');
+  assert.equal(payload, null, 'image kind should not produce JSON payload');
 });
 
 test('decodeJsonPayload returns null for bad payloads', () => {
@@ -107,51 +101,10 @@ test('decodeJsonPayload returns null for bad payloads', () => {
   assert.equal(decodeJsonPayload(undefined), null);
 });
 
-// ---------------------------------------------------------------------------
-// Renderer
-// ---------------------------------------------------------------------------
-
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createJsonRenderer } = require(path.resolve(root, 'src/features/json-renderer/renderer.ts'));
-  const renderer = createJsonRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.formatter',
-      attachmentType: 'plugin.formatter.json',
-      attachmentKey: 'primary',
-      payloadJson: 'not-valid-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false, 'bad payload → shouldDisplay:false');
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createJsonRenderer } = require(path.resolve(root, 'src/features/json-renderer/renderer.ts'));
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
-  const artifact = buildJsonArtifact({
-    item: sampleItem,
-    content: { kind: 'text', text: '{"x":1}' },
-    attachments: [],
-  });
-  const renderer = createJsonRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '{"x":1}' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.formatter',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
+test('decodeJsonPayload accepts a structured V2 attachment payload', () => {
+  const { createJsonPayload, decodeJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const payload = createJsonPayload({ content: { kind: 'text', text: '{"a":1}' } });
+  assert.deepEqual(decodeJsonPayload(payload), payload);
 });
 
 // ---------------------------------------------------------------------------
@@ -200,13 +153,11 @@ test('jsonToYaml: empty object and empty array values', () => {
 });
 
 test('jsonToYaml: payload yaml field populated on detect', () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
-  const artifact = buildJsonArtifact({
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const payload = createJsonPayload({
     item: sampleItem,
     content: { kind: 'text', text: '{"a":1,"b":[2,3]}' },
-    attachments: [],
   });
-  const payload = JSON.parse(artifact.payloadJson);
   assert.ok(typeof payload.yaml === 'string', 'yaml field should be a string');
   assert.ok(payload.yaml.includes('a: 1'), 'yaml should contain key a');
   assert.ok(payload.yaml.includes('- 2'), 'yaml should contain array item 2');
@@ -234,29 +185,25 @@ test('jsonToYaml: decodeJsonPayload fills missing yaml with empty string', () =>
 // ---------------------------------------------------------------------------
 
 test('minified field is compact: no newlines, no double spaces', () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
-  const artifact = buildJsonArtifact({
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const payload = createJsonPayload({
     item: sampleItem,
     content: { kind: 'text', text: '{"a":1,"b":[2,{"c":true}]}' },
-    attachments: [],
   });
-  assert.ok(artifact, 'artifact should not be null');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload, 'payload should not be null');
   assert.ok(typeof payload.minified === 'string', 'minified field should be a string');
   assert.ok(!payload.minified.includes('\n'), 'minified should contain no newlines');
   assert.ok(!payload.minified.includes('  '), 'minified should contain no double spaces');
 });
 
 test('minified is lossless: JSON.parse(minified) deep-equals original', () => {
-  const { buildJsonArtifact } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
+  const { createJsonPayload } = require(path.resolve(root, 'src/features/json-renderer/payload.ts'));
   const original = { name: 'api', ports: [80, 443], enabled: true, meta: { v: 2 } };
-  const artifact = buildJsonArtifact({
+  const payload = createJsonPayload({
     item: sampleItem,
     content: { kind: 'text', text: JSON.stringify(original) },
-    attachments: [],
   });
-  assert.ok(artifact, 'artifact should not be null');
-  const payload = JSON.parse(artifact.payloadJson);
+  assert.ok(payload, 'payload should not be null');
   assert.deepEqual(JSON.parse(payload.minified), original, 'minified round-trips losslessly');
 });
 
@@ -277,4 +224,3 @@ test('decodeJsonPayload fills missing minified with empty string', () => {
   assert.ok(decoded !== null, 'should decode successfully');
   assert.equal(decoded.minified, '', 'minified defaults to empty string for legacy payloads');
 });
-

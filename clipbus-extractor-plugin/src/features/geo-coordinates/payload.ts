@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.extractor.geo" as const;
 
@@ -163,39 +163,19 @@ export function createGeoPayload(input: unknown): GeoPayload | null {
 }
 
 /**
- * Decode and validate a payloadJson string.
+ * Decode a structured payload or a serialized payload.
  * Returns null for missing or malformed data.
  */
 export function decodeGeoPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): GeoPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (p.kind !== "geo_coordinates") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as { kind?: string };
+    if (!p || typeof p !== "object" || p.kind !== "geo_coordinates") return null;
     return p as GeoPayload;
   } catch {
     return null;
   }
 }
 
-/**
- * Build a detector artifact from an input object.
- * Returns null when content is not a valid geo coordinate pair.
- */
-export function buildGeoArtifact(
-  input: unknown
-): PluginDetectorArtifact | null {
-  const payload = createGeoPayload(input);
-  if (!payload) return null;
-
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "extractor",
-      searchText: `${payload.lat},${payload.lng} coordinates geo`,
-      label: "Coordinates",
-    },
-  };
-}
+export const attachment = defineAttachment<GeoPayload>(ATTACHMENT_TYPE);

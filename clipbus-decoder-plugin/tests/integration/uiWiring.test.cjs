@@ -11,7 +11,7 @@ const OLD_SHELL = path.join(ROOT, "src", "preview", "PreviewShellApp.vue");
 // Renderers intentionally using a fixed numeric manifest height (no autoFit needed).
 // PER-PLUGIN: e.g. preview → ["color-swatch","gradient-swatch"]; else [].
 const FIXED_HEIGHT = new Set([]);
-// PER-PLUGIN: false only for plugins with no renderer AND no draft action (text).
+// PER-PLUGIN: false only for plugins with no renderer (text).
 const HAS_PREVIEWABLE_UI = true;
 
 test("preview workbench uses the SDK createPreviewWorkbench (not a hand-rolled shell)", () => {
@@ -32,7 +32,7 @@ test("every auto/bounded renderer calls autoFit (no clipped cards)", () => {
     const appVue = path.join(FEATURES, dir, "app.vue");
     if (!fs.existsSync(appVue)) continue;
     const src = fs.readFileSync(appVue, "utf8");
-    if (!src.includes("clipbus.item.attachment")) continue; // not a renderer
+    if (!src.includes("useCard(")) continue; // not a renderer
     if (FIXED_HEIGHT.has(dir)) continue;
     assert.ok(/autoFit\(|setHeight\(/.test(src),
       `renderer "${dir}" never calls autoFit/setHeight — card height will clip`);

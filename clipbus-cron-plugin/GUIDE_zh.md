@@ -1,140 +1,44 @@
-# 插件开发指南（脚手架工作流）
+# Cron Explainer 开发指南
 
 *[English](./GUIDE.md) · 中文*
 
-本工程（`plugins/template-plugin/`）是 Clipbus 三方插件的**脚手架与可运行示例**。本文件只讲**脚手架工作流**（起步、本地开发、在 Clipbus 中调试、构建、测试）与**工程结构**。
+本插件使用 SDK 2.0.0、插件协议 V2 和 manifest schema 5。检测器识别五字段 Cron 表达式，写入结构化调度附件和可搜索摘要；卡片展示表达式、字段说明、摘要及按本地时间计算的后五次执行时间。
 
-**插件开发的权威知识**（架构、manifest、SDK 入口、detector/renderer/action、入参形状、RPC、权限、坑点）**随 SDK 包发布**，`npm install` 后在 `node_modules/@clipbus/plugin-sdk/docs/`——它始终对应你当前安装的 SDK 版本。
+已安装的 SDK 文档是权威来源：先读 `node_modules/@clipbus/plugin-sdk/docs/README.md`，签名和上限以 `API.md` 为准。修改实现前请读 [AGENTS.md](./AGENTS.md)。
 
-- **AI / 工具**：请先读本工程根目录的 [`AGENTS.md`](./AGENTS.md)，它指向 SDK 文档的稳定入口。
-- **文档地图**：`node_modules/@clipbus/plugin-sdk/docs/README.md`
-- **capability 真相源**：`node_modules/@clipbus/plugin-sdk/API.md`（generated，有冲突以它为准）
-- 通过 `npm update @clipbus/plugin-sdk` 刷新文档与能力，**无需替换本工程任何文件**。
+## 开发与验证
 
-> 本工程内的代码与说明是**示例**，可能滞后于已安装的 SDK；与 SDK 文档冲突时**以 SDK 文档为准**。
-
----
-
-## 0. 快速开始
-
-### 前置条件
-
-- Node.js >= 18
-
-### 初始化
+在 `clipbus-cron-plugin/` 目录内执行：
 
 ```sh
 npm install
-```
-
-依赖 `@clipbus/plugin-sdk` 是独立发布的 npm 包（三方工程通过 `npm install @clipbus/plugin-sdk` 安装）。`npm install` 会拉取并编译 SDK，完成后即可直接使用。
-
-> 所有插件作者可用的符号由 codegen 产出，列在 SDK 包的 `API.md` 与 `README.md`（见 [`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)）。**插件作者不需要查看或修改 SDK 内部源码。**
-
-### 本地开发
-
-```sh
 npm run dev
-```
-
-启动 Vite 预览工作台（Preview Workbench）。工作台模拟宿主推送 bootstrap，提供两个视图：
-
-- `?view=renderer` — 预览 attachment renderer 卡片
-- `?view=action` — 预览 draft action 表单
-
-修改 `src/features/*/app.vue` 后浏览器热更新。
-
-也可以直接打开单一视图：
-
-```sh
-npm run dev:renderer
-npm run dev:action
-```
-
-### 在 Clipbus 中调试
-
-Clipbus → Settings → Plugins → Developer Plugins 区段提供开发插件生命周期管理：
-
-1. **Add Path** — 选择含 `manifest.json` 的目录（即 `sourceRootPath`）。
-2. 若 `manifest.json` 声明了 `install` 字段，Clipbus **自动执行安装脚本**，工作目录为 `sourceRootPath`。`node_modules/` 等产物落到工程目录（等价于你手动 `npm install`）。
-3. 安装日志写入 `<AppData>/development-plugins/<pluginID>/install-logs/`，不会污染你的 git status。
-
-| 按钮 | 行为 |
-|---|---|
-| **重新加载** | 重读 `manifest.json`，刷新 fingerprint / permissions / loadState。**不**重跑 install。 |
-| **执行安装** | 就地重跑 install hook，更新 `lastInstallExecution`。**不**重读 manifest。 |
-| **查看日志** | `installFailed` 状态下显示，打开最近一次安装日志（支持实时 tail）。 |
-
-状态：`installing` → 安装中；`installFailed` → 退出码非 0 或 runtime 不可达；`ready` → 可用。
-
-### 生产构建
-
-```sh
-npm run build
-```
-
-依次：clean → build:runtime → build:ui → verify:build，输出到 `dist/`。
-
-### 校验插件
-
-```sh
 npm run verify
 ```
 
-依次执行：**manifest 校验 → 构建 → 测试**。
+Vite 预览使用“Weekdays at 9:30”真实场景挂载 Cron 卡片，启动快照与宿主采用相同的 V2 协议。场景的 `view: "cron-renderer"` 路由到卡片组件；`?scenario=cron-weekdays-morning` 选择该示例。
 
-manifest 校验步骤（`npm run verify:manifest`）会在构建前检查 `manifest.json` 的结构
-问题——命名空间违规、不支持的 schemaVersion、legacy 字段、非 canonical 类型等。
-这些错误与宿主安装时的校验规则一致，开发期即可拦截。
-
-也可以单独运行 manifest 校验：
+`npm run verify` 依次完成 manifest 校验、类型检查、lint、重建 `dist/`、产物路径校验以及业务、运行时和预览测试。测试使用 Node 原生 TypeScript 支持，请使用当前版本的 Node。单独运行测试时先构建：
 
 ```sh
-npm run verify:manifest
-# 或直接调用 SDK 命令行：
-npx clipbus-validate-manifest .
-npx clipbus-validate-manifest . --runtime  # 额外检查构建产物是否存在
+npm run build
+npm test
 ```
 
-### 测试
+## 在 Clipbus 中调试
 
-```sh
-npm test         # tests/runtime/ 集成测试
-```
+1. 打开 Settings → Plugins → Developer Plugins → **Add Path**。
+2. 选择包含 `manifest.json` 的本目录。
+3. 声明的安装钩子会在本目录运行 `npm install`。
+4. 修改 manifest 或重建后使用 **Reload**；**Run Install** 重新安装依赖，**View Logs** 查看安装失败日志。
 
----
+## 结构与契约
 
-## 1. 工程结构
+- `src/plugin.ts` 注册与 manifest 对齐的 `cron-detector`。
+- `src/features/cron-renderer/payload.ts` 是共享附件契约、payload 构造与解码、表达式校验、字段展开和后续执行时间计算的单一来源。
+- `detector.ts` 通过调用上下文写入 `plugin.cron.schedule` 附件及 `cron` 搜索 scope，输出均在 `writes` 声明。包括重复复制在内的每次检测均完整写入匹配结果。
+- `app.vue` 通过 `useCard` 读取启动附件并跟随条目变化，每 30 秒刷新后续执行时间，按内容自动调整高度；卸载时清理订阅、尺寸观察和定时器。
+- 卡片标题、颜色和高度默认值位于 `manifest.renderers`；页面路径为 `dist/ui/renderers/cron-renderer/index.html`。
+- `src/preview/scenarios/attachmentScenarios.ts` 保留真实样例，从 manifest 派生渲染默认值，并将条目附件引用与 payload 分开。
 
-新插件按 feature 切分，每个 feature 一个自洽目录。推荐布局：
-
-```text
-your-plugin/
-├── manifest.json
-├── package.json                        ← 依赖 @clipbus/plugin-sdk（npm 安装）
-├── scripts/                            ← build:runtime / build:ui / verify:build
-├── src/
-│   ├── features/<feature-name>/        ← 每个能力一个文件夹
-│   │   ├── payload.ts                  ← 数据类型 / draft 类型
-│   │   ├── detector.ts                 ← detector（若有）
-│   │   ├── renderer.ts                 ← renderer runtime 端（若有）
-│   │   ├── action.ts                   ← action runtime 端（若有）
-│   │   ├── app.vue                     ← UI 入口（renderer 或 draft action）
-│   │   ├── main.ts / index.html        ← Vite 入口
-│   ├── shared/                         ← 跨 feature 的薄工具层
-│   ├── preview/                        ← 本地预览工作台（dev-only）
-│   └── plugin.ts                       ← definePlugin 入口；注册所有 handler
-└── tests/runtime/
-```
-
-template-plugin 自带的具体 feature 列表（`preview-renderer/` / `expanded-renderer/` / `auto-action/` / `capability-gallery/`）见 [README_zh.md](./README_zh.md) "演示的能力"。
-
-> SDK 是独立包 `@clipbus/plugin-sdk`，由 codegen 同步、**不要手动改**。扩展 capability 见包内 `SPECIFICATION.md`（[`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)）Ch 3。
-
----
-
-## 接下来
-
-脚手架工作流就这些。**插件实现的全部知识在 SDK 文档**——见根目录 [`AGENTS.md`](./AGENTS.md)，或直接打开 `node_modules/@clipbus/plugin-sdk/docs/README.md`（文档地图）与 `node_modules/@clipbus/plugin-sdk/API.md`（capability 真相源）。
-
-
+解析器支持通配符、列表、范围、步长、月份名和星期名。为避免误判，至少一个字段须含 Cron 特殊字符。后续执行时间沿用日与星期同时受限时的 OR 规则，示例见 [README_zh.md](./README_zh.md)。

@@ -2,6 +2,7 @@
 // Consumed by createPreviewWorkbench (preview-host/main.ts); `view` selects the
 // feature component to mount. Add one entry per attachment renderer feature.
 
+import manifest from "../../../manifest.json";
 import type { PreviewScenario } from "@clipbus/plugin-sdk/preview";
 import { buildWorldClockZones } from "../../features/timestamp-renderer/payload.ts";
 import { createFilesizePayload } from "../../features/filesize-renderer/payload.ts";
@@ -65,42 +66,22 @@ const radixPayload = JSON.stringify({
   isNegative: false,
 });
 
-/** Build an attachmentRenderer scenario; `view` routes to the feature component. */
+/** Build a V2 card scenario from this plugin's payload and manifest defaults. */
 function renderer(opts: {
-  id: string;
-  label: string;
-  view: string;
-  accentHex: string;
-  attachmentType: string;
-  payloadJson: string;
-  min: number;
-  max: number;
+  id: string; label: string; view: string; accentHex: string;
+  attachmentType: string; payloadJson: string; min: number; max: number;
 }): PreviewScenario {
-  const item = {
-    id: `item-${opts.id}`,
-    type: "text",
-    tags: ITEM_TAGS,
-    sourceAppID: SOURCE_APP,
-  };
+  const declared = manifest.renderers.find((entry) => entry.id === opts.view)!;
+  const shown = { type: opts.attachmentType, key: "primary", updatedAt: 1, own: true, payload: JSON.parse(opts.payloadJson) };
   return {
-    id: opts.id,
-    label: opts.label,
-    mode: "attachmentRenderer",
-    pluginID: PLUGIN_ID,
-    accentHex: opts.accentHex,
-    view: opts.view,
-    viewport: { heightPolicy: "bounded", min: opts.min, max: opts.max },
-    item,
-    attachment: {
-      item,
-      attachment: {
-        historyID: `preview-${opts.id}`,
-        owner: PLUGIN_ID,
-        attachmentType: opts.attachmentType,
-        attachmentKey: "primary",
-        payloadJson: opts.payloadJson,
-      },
-    },
+    id: opts.id, label: opts.label, view: opts.view,
+    plugin: { id: PLUGIN_ID, version: manifest.plugin.version },
+    item: { id: `item-${opts.id}`, kind: "text", tags: ITEM_TAGS, sourceApp: SOURCE_APP,
+      pinned: false, createdAt: 1, lastCopiedAt: 1,
+      attachments: [{ type: shown.type, key: shown.key, updatedAt: shown.updatedAt, own: shown.own }] },
+    attachment: shown,
+    renderer: { title: declared.title, tint: declared.tint, buttons: declared.buttons },
+    height: declared.height,
   };
 }
 

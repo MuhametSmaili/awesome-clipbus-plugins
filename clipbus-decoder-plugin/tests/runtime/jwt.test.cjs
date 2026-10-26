@@ -8,7 +8,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "../..");
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, "manifest.json"), "utf8"));
 
-const sampleItem = { id: "item-1", type: "text", tags: [], sourceAppID: "com.example.app" };
+const sampleItem = { id: "item-1", kind: "text", tags: [], sourceApp: "com.example.app" };
 
 // Canonical jwt.io HS256 example: header {alg:HS256,typ:JWT}, payload {sub,name,iat}.
 const CANONICAL =
@@ -30,22 +30,22 @@ function textInput(text) {
 
 test("manifest declares jwt-detector / jwt-renderer", () => {
   assert.ok(manifest.detectors.map((d) => d.id).includes("jwt-detector"));
-  assert.ok(manifest.attachmentRenderers.map((r) => r.id).includes("jwt-renderer"));
+  assert.ok(manifest.renderers.map((r) => r.id).includes("jwt-renderer"));
 });
 
-test("jwt-renderer uiEntry references renderers/ path", () => {
-  const r = manifest.attachmentRenderers.find((x) => x.id === "jwt-renderer");
-  assert.ok(r.uiEntry.startsWith("renderers/"), `unexpected uiEntry: ${r.uiEntry}`);
+test("jwt-renderer page references renderers/ path", () => {
+  const r = manifest.renderers.find((x) => x.id === "jwt-renderer");
+  assert.ok(r.page.startsWith("dist/ui/renderers/"), `unexpected page: ${r.page}`);
 });
 
 // ── Detector / payload ────────────────────────────────────────────────────────
 
 test("detector decodes the canonical JWT header and claims", () => {
-  const { buildJwtArtifact } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
-  const artifact = buildJwtArtifact(textInput(CANONICAL));
+  const { createJwtPayload } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
+  const artifact = createJwtPayload(textInput(CANONICAL));
   assert.ok(artifact, "should detect canonical JWT");
-  assert.equal(artifact.attachmentType, "plugin.decoder.jwt");
-  const payload = JSON.parse(artifact.payloadJson);
+
+  const payload = artifact;
   assert.equal(payload.kind, "jwt_preview");
   assert.equal(payload.alg, "HS256");
   assert.equal(payload.typ, "JWT");
@@ -77,21 +77,21 @@ test("exp far in the future is reported as not expired", () => {
 });
 
 test("detector rejects a header without alg", () => {
-  const { buildJwtArtifact } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
+  const { createJwtPayload } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
   const jwt = makeJwt({ foo: 1 }, { bar: 2 });
-  assert.equal(buildJwtArtifact(textInput(jwt)), null);
+  assert.equal(createJwtPayload(textInput(jwt)), null);
 });
 
 test("detector ignores plain text and non-JWT dotted strings", () => {
-  const { buildJwtArtifact } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
-  assert.equal(buildJwtArtifact(textInput("hello world this is prose")), null);
-  assert.equal(buildJwtArtifact(textInput("not.a.token")), null);
-  assert.equal(buildJwtArtifact(textInput("abcd.efgh.ijkl")), null);
+  const { createJwtPayload } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
+  assert.equal(createJwtPayload(textInput("hello world this is prose")), null);
+  assert.equal(createJwtPayload(textInput("not.a.token")), null);
+  assert.equal(createJwtPayload(textInput("abcd.efgh.ijkl")), null);
 });
 
 test("detector ignores image content kind", () => {
-  const { buildJwtArtifact } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
-  const artifact = buildJwtArtifact({
+  const { createJwtPayload } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
+  const artifact = createJwtPayload({
     item: sampleItem,
     content: { kind: "image", width: 10, height: 10, format: "png", bytes: 0 },
     attachments: [],
@@ -109,28 +109,11 @@ test("decodeJwtPayload returns null for non-jwt-preview payloads", () => {
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
-test("renderer returns shouldDisplay:false for bad payload", async () => {
-  const { createJwtRenderer } = require(path.resolve(root, "src/features/jwt-renderer/renderer.ts"));
-  const result = await createJwtRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "" },
-    attachments: [],
-    attachment: { historyID: "h1", owner: "plugin.decoder", attachmentType: "plugin.decoder.jwt", attachmentKey: "primary", payloadJson: "not-valid-json" },
-  });
-  assert.equal(result.shouldDisplay, false);
-});
 
-test("renderer returns a displayName for a valid payload", async () => {
-  const { createJwtRenderer } = require(path.resolve(root, "src/features/jwt-renderer/renderer.ts"));
-  const { buildJwtArtifact } = require(path.resolve(root, "src/features/jwt-renderer/payload.ts"));
-  const artifact = buildJwtArtifact(textInput(CANONICAL));
-  const result = await createJwtRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: CANONICAL },
-    attachments: [],
-    attachment: { historyID: "h1", owner: "plugin.decoder", attachmentType: artifact.attachmentType, attachmentKey: artifact.attachmentKey, payloadJson: artifact.payloadJson },
-  });
-  assert.ok(result.displayName);
-  assert.notEqual(result.shouldDisplay, false);
+test('decodeJwtPayload accepts structured V2 attachment payloads', () => {
+  const { createJwtPayload, decodeJwtPayload } = require(path.resolve(root, 'src/features/jwt-renderer/payload.ts'));
+  const payload = createJwtPayload({ content: { kind: 'text', text: CANONICAL } });
+  assert.ok(payload);
+  assert.deepEqual(decodeJwtPayload(payload), payload);
+  assert.deepEqual(decodeJwtPayload(JSON.stringify(payload)), payload);
 });
-

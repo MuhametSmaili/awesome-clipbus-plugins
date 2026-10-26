@@ -1,6 +1,6 @@
-import { patchConsole, patchTextInputState } from "@clipbus/plugin-sdk/dom";
-patchConsole();
-patchTextInputState();
+import { forwardConsole, reportInputState } from "@clipbus/plugin-sdk/dom";
+forwardConsole();
+reportInputState();
 import { createApp } from "vue";
 import App from "./app.vue";
 import "../../shared/base.css";

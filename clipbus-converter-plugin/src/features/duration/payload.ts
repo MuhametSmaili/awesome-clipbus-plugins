@@ -1,7 +1,7 @@
 // payload.ts — UI-safe single source of truth for the duration preview attachment.
 // NO `import … from "node:*"` here: this file is imported by app.vue (browser) too.
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.converter.duration";
 
@@ -118,10 +118,10 @@ export function createDurationPayload(input: unknown): DurationPayload | null {
 }
 
 export function decodeDurationPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): DurationPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (p.kind !== "duration_preview") return null;
     return p as DurationPayload;
   } catch {
@@ -129,17 +129,4 @@ export function decodeDurationPayload(
   }
 }
 
-export function buildDurationArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createDurationPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "converter",
-      searchText: `${payload.original} ${payload.humanBreakdown}`.slice(0, 200),
-      label: "Duration",
-    },
-  };
-}
+export const attachment = defineAttachment<DurationPayload>(ATTACHMENT_TYPE);

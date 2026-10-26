@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeUrlPayload } from "./payload";
+import { useCard } from "../../shared/composables/useCard";
+import { attachment, decodeUrlPayload } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the dev preview workbench document.body is the whole page, so without a target
-// autoFit never converges and spams setHeight every frame.
+// autoFit never converges and spams height updates every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const { attachment: currentAttachment } = useCard(attachment);
 const payload = computed(() =>
-  decodeUrlPayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeUrlPayload(currentAttachment.value.payload)
 );
 
 const queryJson = computed(() => {
@@ -32,29 +32,16 @@ const hasTracking = computed(
 let unsub: (() => void) | null = null;
 let stopAutoFit: (() => void) | null = null;
 
-onMounted(async () => {
+onMounted(() => {
   stopAutoFit = autoFit({ min: 140, max: 500, target: rootEl.value ?? undefined });
-  try {
-    const buttons = payload.value?.inputType === "query"
-      ? [{ id: "copy", title: "Copy as JSON" }]
-      : hasTracking.value
-      ? [
-          { id: "copy-clean", title: "Copy clean URL" },
-          { id: "copy", title: "Copy query params (JSON)" },
-        ]
-      : [{ id: "copy", title: "Copy query params (JSON)" }];
-    await clipbus.attachmentRenderer.setButtons({ buttons });
-  } catch {
-    /* not in attachment renderer context */
-  }
 
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
+  unsub = ctx.renderer.onButton(async (d) => {
     if (!payload.value) return;
-    if (d?.buttonID === "copy-clean") {
-      await clipbus.clipboard.copyText({ text: payload.value.cleanHref });
-    } else if (d?.buttonID === "copy") {
+    if (d.id === "copy-clean") {
+      await ctx.system.copyText({ text: payload.value.cleanHref });
+    } else if (d.id === "copy") {
       const text = queryJson.value ?? payload.value.href;
-      await clipbus.clipboard.copyText({ text });
+      await ctx.system.copyText({ text });
     }
   });
 });

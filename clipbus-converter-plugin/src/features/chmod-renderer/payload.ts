@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 const ATTACHMENT_TYPE = "plugin.converter.chmod";
 
@@ -120,10 +120,10 @@ export function createChmodPayload(input: unknown): ChmodPayload | null {
 }
 
 export function decodeChmodPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): ChmodPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (p.kind !== "chmod_preview") return null;
     return p as ChmodPayload;
   } catch {
@@ -131,17 +131,4 @@ export function decodeChmodPayload(
   }
 }
 
-export function buildChmodArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createChmodPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "converter",
-      searchText: `chmod ${payload.octal} ${payload.symbolic}`,
-      label: "File Permissions",
-    },
-  };
-}
+export const attachment = defineAttachment<ChmodPayload>(ATTACHMENT_TYPE);

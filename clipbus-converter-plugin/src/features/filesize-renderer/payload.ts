@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export interface FilesizeUnit {
   unit: string;
@@ -133,10 +133,10 @@ export function createFilesizePayload(input: unknown): FilesizePayload | null {
 }
 
 export function decodeFilesizePayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): FilesizePayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (p.kind !== "filesize_preview") return null;
     return p as FilesizePayload;
   } catch {
@@ -144,17 +144,4 @@ export function decodeFilesizePayload(
   }
 }
 
-export function buildFilesizeArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createFilesizePayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "converter",
-      searchText: `${payload.bytesFormatted} bytes`,
-      label: "Data Size",
-    },
-  };
-}
+export const attachment = defineAttachment<FilesizePayload>(ATTACHMENT_TYPE);

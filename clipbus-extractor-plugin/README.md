@@ -1,6 +1,6 @@
 # Extractor
 
-Clipbus plugin that extracts URLs, email addresses, and IP addresses from clipboard text, parses individual URL structure in detail, and provides an interactive regex tester.
+Clipbus plugin that extracts URLs, email addresses, and IP addresses from clipboard text, parses individual URL structure in detail.
 
 ## Features
 
@@ -46,15 +46,6 @@ Detects when the clipboard contains a single UUID in any standard form — plain
 
 - **Detector** (`uuid-detector`): input kind `text`, attachment type `plugin.extractor.uuid`; normalises to lowercase canonical form; rejects bare 32-hex blobs and prose
 - **Renderer** (`uuid-details`): displays canonical form and URN with copy buttons; version number with description (v1 Time-based through v8 Custom); RFC 4122/9562 variant classification; embedded timestamp (ISO 8601) decoded from v1 (60-bit Gregorian) and v7 (48-bit Unix ms) UUIDs; node address (v1 only) formatted as `XX:XX:XX:XX:XX:XX`; Nil and Max UUID special labels
-
-### Regex Tester (`regex-tool`)
-
-A draft action providing an interactive regex debugger inside Clipbus.
-
-- **Action** (`regex-tool`, draft): input kind `text`
-- Clipboard text is pre-filled into the test input when available
-- Enter a pattern and flags (`g` / `i` / `m` etc.) to see all matches, capture groups, and match positions in real time
-- Capped at 200 matches; input longer than 20,000 characters is truncated to prevent freezing
 
 ## Development
 

@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export interface EntitiesPayload {
   kind: "entities_preview";
@@ -9,7 +9,7 @@ export interface EntitiesPayload {
   totalCount: number;
 }
 
-const ATTACHMENT_TYPE = "plugin.extractor.entities";
+export const ATTACHMENT_TYPE = "plugin.extractor.entities";
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`)\]}]+/gi;
 const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
@@ -53,28 +53,14 @@ export function createEntitiesPayload(input: unknown): EntitiesPayload | null {
   };
 }
 
-export function decodeEntitiesPayload(payloadJson: string | null | undefined): EntitiesPayload | null {
+export function decodeEntitiesPayload(value: unknown): EntitiesPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (p.kind !== "entities_preview") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as { kind?: string };
+    if (!p || typeof p !== "object" || p.kind !== "entities_preview") return null;
     return p as EntitiesPayload;
   } catch {
     return null;
   }
 }
 
-export function buildEntitiesArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createEntitiesPayload(input);
-  if (!payload) return null;
-  const allTerms = [...payload.urls, ...payload.emails, ...payload.ips];
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "extractor",
-      searchText: allTerms.join(" ").slice(0, 200),
-      label: "Extracted Entities",
-    },
-  };
-}
+export const attachment = defineAttachment<EntitiesPayload>(ATTACHMENT_TYPE);

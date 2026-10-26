@@ -1,56 +1,33 @@
+import manifest from "../../../manifest.json";
 import type { PreviewScenario } from "@clipbus/plugin-sdk/preview";
+import { createVibePayload } from "../../features/vibe-fallback/payload";
 
-const PLUGIN_ID = "plugin.vibe";
+const declared = manifest.renderers[0];
+
+function renderer(id: string, label: string, text: string, settings?: Record<string, unknown>): PreviewScenario {
+  const attachment = {
+    type: declared.attachmentType, key: "primary", updatedAt: 1, own: true,
+    payload: createVibePayload({ content: { kind: "text", text } })!,
+  };
+  return {
+    id, label, view: declared.id,
+    plugin: { id: manifest.plugin.id, version: manifest.plugin.version },
+    item: {
+      id: `item-${id}`, kind: "text", tags: [], sourceApp: "com.preview.editor",
+      pinned: false, createdAt: 1, lastCopiedAt: 1,
+      attachments: [{ type: attachment.type, key: attachment.key, updatedAt: attachment.updatedAt, own: attachment.own }],
+    },
+    content: { kind: "text", text },
+    attachment,
+    renderer: { title: declared.title, tint: declared.tint, buttons: declared.buttons },
+    height: declared.height,
+    settings,
+  };
+}
 
 export const attachmentScenarios: PreviewScenario[] = [
-  {
-    id: "fallback-text",
-    label: "Fallback — Plain Text",
-    mode: "attachmentRenderer",
-    pluginID: PLUGIN_ID,
-    accentHex: "#7C5CFF",
-    view: "vibe-fallback",
-    viewport: { heightPolicy: "fixed", height: 220 },
-    item: { id: "item-vibe", type: "text", tags: [], sourceAppID: "com.preview.editor" },
-    attachment: {
-      item: { id: "item-vibe", type: "text", tags: [], sourceAppID: "com.preview.editor" },
-      attachment: {
-        historyID: "preview-vibe",
-        owner: PLUGIN_ID,
-        attachmentType: "plugin.vibe.fallback",
-        attachmentKey: "primary",
-        payloadJson: JSON.stringify({ kind: "vibe_fallback", version: 1, text: "hello world", charCount: 11 }),
-      },
-    },
-    buttons: [
-      { id: "particle-core", title: "Particle Core", isEnabled: true },
-      { id: "text-reveal", title: "Text Reveal", isEnabled: true },
-      { id: "text-loop", title: "Text Loop", isEnabled: true },
-    ],
-  },
-  {
-    id: "fallback-short",
-    label: "Fallback — Short Word",
-    mode: "attachmentRenderer",
-    pluginID: PLUGIN_ID,
-    accentHex: "#7C5CFF",
-    view: "vibe-fallback",
-    viewport: { heightPolicy: "fixed", height: 220 },
-    item: { id: "item-vibe2", type: "text", tags: [], sourceAppID: "com.preview.editor" },
-    attachment: {
-      item: { id: "item-vibe2", type: "text", tags: [], sourceAppID: "com.preview.editor" },
-      attachment: {
-        historyID: "preview-vibe2",
-        owner: PLUGIN_ID,
-        attachmentType: "plugin.vibe.fallback",
-        attachmentKey: "primary",
-        payloadJson: JSON.stringify({ kind: "vibe_fallback", version: 1, text: "Vibe", charCount: 4 }),
-      },
-    },
-    buttons: [
-      { id: "particle-core", title: "Particle Core", isEnabled: true },
-      { id: "text-reveal", title: "Text Reveal", isEnabled: true },
-      { id: "text-loop", title: "Text Loop", isEnabled: true },
-    ],
-  },
+  renderer("fallback-text", "Fallback — Plain Text", "hello world"),
+  renderer("fallback-short", "Fallback — Short Word", "Vibe"),
+  renderer("fallback-loop", "Settings — Text Loop First", "hello world", { animations: ["text-loop", "particle-core"] }),
+  renderer("fallback-reveal", "Settings — Text Reveal Only", "Vibe", { animations: "text-reveal" }),
 ];

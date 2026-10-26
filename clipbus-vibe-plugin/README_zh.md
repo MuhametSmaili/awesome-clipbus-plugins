@@ -4,9 +4,11 @@
 
 ## 工作原理
 
-### 兜底机制（广挂 + 让位）
+### 兜底机制
 
-Vibe 的 detector 会为所有非空 text 类型的剪贴板条目挂载附件。renderer 在渲染时检查同一条目是否存在来自**其他插件命名空间**的附件——如果有，则让位（`shouldDisplay: false`），优先展示更专业的插件。只有当没有其他插件声明该条目时，Vibe 才显示动画卡。
+Vibe 的 detector 检查 `input.item.attachments` 中的 V2 附件引用。若已有其他插件的附件（`own: false`），本次不写入，让位给对应插件；否则为非空文本写入动画附件。本插件自己的引用（`own: true`）不会阻止重复复制时完整重写，因此 recopy 会保留动画。
+
+检查依据是 detector 的条目快照。其他 detector 在此后新增的附件会在下次检测时参与判断；协议 V2 已移除 Runtime renderer 的可见性回调。
 
 ### 三个可切换动画
 
@@ -57,7 +59,7 @@ Vibe 内置三个动画。Clipbus 在卡片下方渲染原生按钮栏，按**�
 
 ### 切换动画
 
-切换由 SDK 的原生 renderer 按钮 API 驱动（`clipbus.attachmentRenderer.setButtons` + `onHostInvoke`）——卡片内无内置按钮。加载时 Vibe 从设置中解析动画列表，调用 `setButtons` 为每个动画注册一个**启用**的按钮，第一个动画默认显示。点击任意按钮即切换；点击当前按钮则重播。
+切换通过 `ctx.renderer.update({ buttons })` 和 `ctx.renderer.onButton(event => ...)` 完成，使用 `event.id` 选择动画。加载时从设置解析列表，为每个动画发布一个**启用**的宿主原生按钮，第一个动画默认显示。点击任意动画即切换；点击当前动画则重播。卡片卸载时取消订阅并释放动画资源。
 
 ### 设置
 
@@ -70,7 +72,7 @@ Vibe 读取一个只读设置项 **`plugin.vibe.animations`**——按顺序显�
 
 有效 id：`particle-core`、`text-reveal`、`text-loop`。未知 id 会被忽略，重复项会被合并。也接受逗号/空格分隔的字符串（如 `"text-loop, particle-core"`）。
 
-插件只能**读**设置（`clipbus.settings.get`）——没有 `settings.set`，manifest 也无设置 schema。设置是宿主持有的扁平共享 JSON 存储，key 以 plugin id 作命名空间前缀。配置方法：编辑宿主的 external-settings 文件，然后重载插件：
+插件通过 `ctx.settings.get<{ animations?: unknown }>()` **只读**设置。返回值是 `{ values }`，键已去掉插件前缀：宿主文件里的 `plugin.vibe.animations` 对应 `values.animations`。配置方法：编辑宿主的 external-settings 文件，然后重载插件：
 
 ```
 ~/Library/Application Support/Clipbus/ExternalSettings/settings.json   （debug 构建为 …/ClipbusDebug/…）
@@ -84,6 +86,6 @@ Vibe 读取一个只读设置项 **`plugin.vibe.animations`**——按顺序显�
 
 ## 注意事项
 
-- **跨插件让位**需在真实 Clipbus 环境中验证，dev 预览仅有本插件故始终显示 Vibe 卡。
+- 四个预览场景保留普通文本和短单词示例，并演示动画排序与单动画设置。Runtime 测试覆盖外部附件引用和仅含自身附件时的 recopy；真实宿主中的检测顺序仍需实测。
 - 卡片背景为深色太空渐变，是动画的视觉本质，并非 theme 错误。
-- schema v4 下附件由宿主统一作为本机派生数据保存，不会跨设备同步。
+- schema 5 下，附件类型声明在 `writes.attachmentTypes`，由宿主保存为本机派生数据。

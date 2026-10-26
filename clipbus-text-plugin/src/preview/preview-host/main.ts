@@ -1,11 +1,8 @@
 import { createApp, h } from "vue";
+import manifest from "../../../manifest.json";
 import "../../shared/base.css";
 
-// The text plugin ships only auto-run actions (sort / dedup / trim / strip-ansi).
-// Auto-run actions execute headlessly and return a result — they have no WebView,
-// so there is nothing to mount in a preview workbench. `npm run dev` just shows this
-// note. (createPreviewWorkbench is intentionally not used: it needs >=1 previewable
-// scenario, and this plugin has none.)
+// Actions have no card pages or preview scenarios.
 createApp({
   render() {
     return h(
@@ -26,14 +23,16 @@ createApp({
               "display:block;margin-bottom:8px;font-size:14px;" +
               "color:var(--clipbus-text-primary,#0f172a);",
           },
-          "Text plugin — no previewable UI"
+          manifest.plugin.title + " — no previewable UI"
         ),
         h(
           "p",
           { style: "margin:0;" },
-          "This plugin exposes only auto-run actions (sort, dedup, trim, strip-ansi). " +
-            "They run headlessly and return a result, so there is no renderer or " +
-            "draft-action WebView to preview here."
+          "These nine Actions transform the current text value directly. " +
+            "Select a text item in Clipbus and run an Action to see its result."
+        ),
+        h("ul", { style: "margin:16px 0 0;padding-left:20px;" },
+          manifest.actions.map(({ id, title }) => h("li", { key: id }, title))
         ),
       ]
     );

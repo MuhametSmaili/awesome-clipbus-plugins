@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "plugin": {
     "id": "plugin.preview",
     "title": "Preview",
@@ -10,52 +10,87 @@
     "entry": "scripts/install.mjs"
   },
   "runtime": {
-    "nodeEntry": "dist/plugin.cjs",
-    "uiRoot": "dist/ui"
+    "nodeEntry": "dist/plugin.cjs"
   },
-  "permissions": ["setAttachment"],
   "detectors": [
     {
       "id": "color-detector",
       "title": "Color Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.preview.color"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "markdown-detector",
       "title": "Markdown Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.preview.markdown"]
+      "inputKinds": [
+        "text"
+      ]
     },
     {
       "id": "gradient-detector",
       "title": "Gradient Detector",
-      "supportedInputKinds": ["text"],
-      "attachmentTypes": ["plugin.preview.gradient"]
+      "inputKinds": [
+        "text"
+      ]
     }
   ],
-  "attachmentRenderers": [
+  "actions": [],
+  "renderers": [
     {
       "id": "color-swatch",
-      "title": "Color Swatch",
+      "title": "Color",
       "attachmentType": "plugin.preview.color",
-      "height": 260,
-      "uiEntry": "renderers/color-swatch/index.html"
+      "height": {
+        "min": 260,
+        "max": 260
+      },
+      "page": "dist/ui/renderers/color-swatch/index.html",
+      "buttons": [
+        {
+          "id": "copy",
+          "title": "Copy All Formats"
+        }
+      ]
     },
     {
       "id": "markdown-renderer",
       "title": "Markdown Preview",
       "attachmentType": "plugin.preview.markdown",
-      "height": { "min": 120, "max": 480 },
-      "uiEntry": "renderers/markdown-renderer/index.html"
+      "height": {
+        "min": 120,
+        "max": 480
+      },
+      "page": "dist/ui/renderers/markdown-renderer/index.html",
+      "tint": "#0EA5E9"
     },
     {
       "id": "gradient-swatch",
       "title": "Gradient",
       "attachmentType": "plugin.preview.gradient",
-      "height": 260,
-      "uiEntry": "renderers/gradient-swatch/index.html"
+      "height": {
+        "min": 260,
+        "max": 260
+      },
+      "page": "dist/ui/renderers/gradient-swatch/index.html",
+      "buttons": [
+        {
+          "id": "copy-gradient",
+          "title": "Copy Gradient"
+        }
+      ]
     }
   ],
-  "actions": []
+  "writes": {
+    "attachmentTypes": [
+      "plugin.preview.color",
+      "plugin.preview.markdown",
+      "plugin.preview.gradient"
+    ],
+    "searchScopes": [
+      "color",
+      "markdown",
+      "preview"
+    ]
+  }
 }

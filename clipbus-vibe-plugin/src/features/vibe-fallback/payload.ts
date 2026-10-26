@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact, PluginDetectorInput } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment, type PluginDetectInput } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.vibe.fallback";
 const MAX_TEXT = 280;
@@ -10,29 +10,22 @@ export interface VibePayload {
   charCount: number;  // 原始字符数（动画强度/seed 用）
 }
 
-export function decodeVibePayload(payloadJson: string | null | undefined): VibePayload | null {
+export const vibeAttachment = defineAttachment<VibePayload>(ATTACHMENT_TYPE);
+
+export function decodeVibePayload(value: unknown): VibePayload | null {
   try {
-    const p = JSON.parse(payloadJson || "{}");
-    if (p.kind !== "vibe_fallback" || typeof p.text !== "string") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as Partial<VibePayload> | null;
+    if (!p || p.kind !== "vibe_fallback" || p.version !== 1 || typeof p.text !== "string"
+      || typeof p.charCount !== "number" || !Number.isSafeInteger(p.charCount) || p.charCount < 0) return null;
     return p as VibePayload;
   } catch { return null; }
 }
 
-export function createVibePayload(input: PluginDetectorInput): VibePayload | null {
+export function createVibePayload(input: Pick<PluginDetectInput, "content">): VibePayload | null {
   if (input?.content?.kind !== "text") return null;
-  const raw = (input.content as { kind: "text"; text: string }).text;
+  const raw = input.content.text;
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   if (trimmed.length === 0) return null;       // 空文本不挂
   return { kind: "vibe_fallback", version: 1, text: trimmed.slice(0, MAX_TEXT), charCount: trimmed.length };
-}
-
-export function buildVibeArtifact(input: PluginDetectorInput): PluginDetectorArtifact | null {
-  const payload = createVibePayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-  };
 }

@@ -26,7 +26,8 @@ description: >-
 ## 前置：确认环境
 
 1. 确认在合集仓库根：存在 `template-plugin/` 目录。不在则停下并说明。
-2. 本 skill 的脚本路径（相对本 skill 目录）：`scripts/survey.mjs`、`scripts/scaffold.mjs`。深入资料在 `references/`。
+2. 目标插件先 npm install，并读安装 SDK 的 docs/README.md 与 API.md；当前标准为 SDK 2.x / schema 5。
+3. 本 skill 的脚本路径（相对本 skill 目录）：`scripts/survey.mjs`、`scripts/scaffold.mjs`。深入资料在 `references/`。
 
 ## 工作流（七阶段）
 
@@ -76,11 +77,11 @@ description: >-
 ### 4 · 实现能力（实用优先）
 
 读 `references/authoring-guide.md` 跟着写。要点：
-- 按选题**只实现需要的扩展点,别凑三件套**；**要展示的附件必配 renderer**（detector 产出要展示的附件才需 renderer；只做 `searchProjection` 搜索投影、不展示卡片的 detector 无需 renderer，详见铁律）；**auto-run action 仅当能提供 renderer 给不了的东西时才加**——renderer 已展示某值且有一键复制按钮时，**禁止**再加返回同一值的 copy-action（纯冗余，详见铁律）；draft 表单仅当需要用户输入。
-- 关键约定 **feature 目录名 === manifest 能力 id**（UI 承载能力即 renderer / draft action 各自一个同名目录，含 `main.ts`+`index.html`）。
-- 每个 feature：`payload.ts`（单一真相源）→ detector/renderer/action 运行时 → `app.vue`（renderer/draft 才有）→ **preview `PreviewScenario` 并在 `preview-host/main.ts` 的 `COMPONENTS` 映射到组件（必做，不是可选）**；renderer 还要配 `clipbus.window.autoFit()` 搭 manifest `"auto"`/`{min,max}` 高度、长内容补内部滚动（见 authoring-guide §8/§10）。
-- 同步三处：`manifest.json` 能力条目、`src/plugin.ts` 的 `setup()` 注册、目录名。
-- **attachmentType 用本插件命名空间** `plugin.<本插件>.<feat>`；扩展进已有插件时改用**宿主**插件命名空间，别沿用 feature 的旧 topic 名（宿主加载期会拒越界，`npm run verify` 查不出——详见铁律）。
+- 按选题只实现需要的贡献：展示附件配 renderer，只写搜索扩展可无 renderer；Action 只在提供独立变换时添加，避免重复复制入口。
+- 有卡片页的 feature 目录名与 renderer id 一致，包含 app.vue、main.ts、index.html；Action 只有 Runtime 函数。
+- payload.ts 放跨端安全的类型、defineAttachment 契约、构造与解码；detector/Action 放 Runtime。每个 renderer 都有真实 V2 scenario 和组件挂载，非固定高度使用 /dom 的 autoFit({ target })。
+- detector/Action 的 manifest id 与 Runtime key 对齐；renderer 的 id、源目录、page 与 preview 组件映射对齐。
+- 附件类型使用本插件 id + "." 前缀，并列在 manifest writes.attachmentTypes；搜索 scope 列在 writes.searchScopes。合并 feature 时同步契约、manifest、测试和 scenario 的命名空间。
 - 视觉只用 `var(--clipbus-*, 回退)` 主题 token，适配明暗，版式干净（详见 authoring-guide 的视觉规范）。
 - 写**精简冒烟测试**（范式见 authoring-guide）。
 
@@ -107,23 +108,23 @@ description: >-
 
 ## 铁律（接线不变量，违反必出错）
 
-- **三处 id 对齐**：manifest 能力 `id` === `src/plugin.ts` 注册 key === `src/features/<dir>` 目录名（也即 UI 产物目录）。
-- **要展示的附件 ⇒ 必配 renderer**（不是笼统的 "detector ⇒ renderer"）：detector 的 artifact 有两面——**附件**（`attachmentType`+`payloadJson`，要在卡片里**展示**就必须配同 `attachmentType` 的 renderer，否则附件无法显示）和**可选的搜索投影** `searchProjection`（`{scope,searchText,label?}`，把内容喂进宿主搜索索引让该记录能被搜到，如 OCR 文本参与搜索——**不展示、不需要 renderer**）。判断标准是「这个 detector 要不要展示附件卡片」：要 → 配 renderer；只为搜索 → 只填 `searchProjection`、不配 renderer。（搜索扩展的写入受 `setSearchExtension` 权限门控，imperative 写法是 runtime verb `host.item.setSearchExtension`。）
-- **扩展点按需，禁止冗余 copy-action**：三扩展点触发成本不同——detector 复制时**自动**挂附件；renderer 选中时**自动**展示、可内置**一键**复制按钮；auto-run action 要用户 **cmd+k 打开面板再选中**才运行（比一键复制多好几步）。故**当 detector+renderer 已展示某值并提供一键复制时，严禁再加一个 `runAutoAction` 返回同一个值的 auto-run action**——用户永远走更快的 renderer 按钮，该 action 是纯冗余。auto-run action **只在能提供 renderer 给不了的东西时**才合理：要么插件无 detector/renderer（如纯文本变换 `clipbus-text-plugin` 的 sort/dedup/trim，action 是唯一入口），要么产出 renderer 未覆盖的另一种结果。展示型 feature（格式化/解码/转换/解析）通常**只需 detector + renderer**，复制做成 renderer 按钮即可。
-- **attachmentType 必须在插件命名空间内**：每个 detector/renderer 的 `attachmentType` 必须以 `plugin.id + "."` 为前缀（即 `plugin.<本插件>.<feat>`）。**宿主在加载期强制校验**，越界直接拒载并报 `Detector attachment type is outside plugin namespace: <detector> -> <type>`——而 `npm run verify` **不校验此项**（本地构建/测试全绿，仍可能在 Clipbus 里加载失败，是隐蔽坑）。**合并/扩展插件时最易踩**：把某 feature 并入 `clipbus-<宿主>-plugin` 时，必须把它的 attachmentType 从旧的 `plugin.<原topic>.*` 改成宿主命名空间 `plugin.<宿主>.*`，且 manifest 的 detector `attachmentTypes[]` 与 renderer `attachmentType`、`payload.ts` 的 `ATTACHMENT_TYPE` 常量、测试与 scenario 里的全部引用（含测试 mock 的 `owner`）**同步改**。
-- **输入仅三种 kind**：`text` / `image` / `path_reference`（snake_case）；content envelope 扁平。
-- **Manifest 固定 schema v4**：顶层 `schemaVersion` 必须为 `4`；detector artifact 不再写 `attachmentSyncScope`，`item.setAttachments` entry 不再写 `syncScope`，附件由宿主统一按 `local_only` 保存。detector 与 Action 都用 `supportedInputKinds`；`supportedItemTypes`、`inputConstraints`、`possibleResultKinds` 均是 legacy 字段，宿主不会自动适配。
-- **Action 区分原始身份与当前值**：Runtime Action 的 `input.sourceItem` 仅用于原始 item 身份和 mutation，实际适用性与处理逻辑必须看当前级联的 `input.content.kind`。Action 图片 Runtime 用 `host.action.materializeInputImagePath()`，Draft UI 用 `clipbus.action.input` 与 `clipbus.asset.currentActionInputImageUrl()`；不要退回原始 item 图片 API。
-- **文本解码器必须在产出 artifact 前校验可读性**：“字符集合法 + `Buffer.from(..., "base64")` 不报错”不等于解码成功，Node 会把无效 UTF-8 宽松转成 `�` 乱码。对要展示/索引为文本的 Base64 等解码结果，至少同时要求：① 解码 bytes → UTF-8 string → bytes 无损往返；② 可显示字符比例达标（建议 ≥95%，允许 `\t`/`\n`/`\r`）。任一不通过就返回 `null`/空 artifacts；回归测试必须同时覆盖无效 UTF-8、控制字符数据和合法的非 ASCII 文本。
+- **接线对齐**：detector/Action manifest id 与函数注册 key 一致；renderer id 与 src/features/<id>、page 对齐，renderer 不注册 Runtime handler。
+- **展示与搜索独立**：detector 用 ctx.item 写附件/搜索扩展，只有要展示的附件需要同型 renderer；内部状态与纯搜索输出不要求 UI。
+- **扩展点按需**：已展示并有复制按钮的值，不再创建同值复制 Action；Action 适合无卡片的文本变换或独立结果。
+- **命名空间与声明**：attachment type 必须以 plugin.id + "." 开头；所有实际写入列入 writes。新增类型/搜索 scope 后同步 manifest、契约、preview 和测试。
+- **输入仅两种 kind**：text / image，字段与 kind 同级；图片只有元数据，像素通过 ctx.input.imagePath() 读取。
+- **当前契约**：SDK ^2.0.0、schemaVersion 5、renderers[].page、detectors/actions 的 inputKinds。Action 只有函数处理器；宿主已移除 Draft 能力，不生成表单或兼容层。
+- **Action 当前值**：input.item 是 Flow 起点；处理逻辑看 input.content。图片读取当前级联 ctx.input.imagePath()，输出写插件 cache 后用 result.image 返回。
+- **文本解码验证**：Base64 等文本输出先验证 UTF-8 无损往返与可显示字符比例，业务测试覆盖无效 UTF-8、控制字符和合法非 ASCII 文本。
 - **能力签名以 API.md 为准**；不改 `node_modules/@clipbus/plugin-sdk/` 内 SDK 源码。
 - UI 禁裸 hex，一律 `var(--clipbus-*, 回退)`。
-- **UI 贴合宿主（透明 + 贴边）**：renderer 与 draft action 的根 `<main>` **不写 `background`**（透明、露出宿主底色）、**`padding:0`**；且**顶层布局 section 的水平 padding 也要清零、内容贴边**——宿主已给卡片/面板留了 native 内距，再加就是双层内距（draft action 最易在 section 层漏掉这层，根 `padding:0` 还不够）。只有**有独立边框/底色的内部子盒**才用各自 padding。详见 `references/authoring-guide.md` §11。
+- **UI 贴合宿主**：卡片根容器透明、padding:0；顶层 section 水平内距也清零，只有独立子盒使用内部 padding。详见 authoring-guide §11。
 - **文案语言（面向用户文字一律英文）**：后续生产的插件 / 新 feature，所有**面向用户**的文案——`manifest.json` 的 `title` / `description`、UI（`app.vue` 等）里可见的字符串与按钮标题、插件自身 `README.md`——**必须用英文**。根索引按 `README.md`（英文）+ `README_zh.md`（中文）双写。代码注释、本仓库内部说明、commit message 不受此限。
 - **文案风格统一（命名一致性）**：`plugin.title` 用简洁的**类别名或功能名**（如 `Formatter` / `Extractor` / `Cron Explainer`），不要用裸目录名；**README 的 H1 必须是人类标题**，禁止 `# clipbus-xxx-plugin` 裸 slug；detector 的 `title` 统一 `<X> Detector`（不要 `Detection`）；renderer 的 `title` 用**内容名词**（`Color Swatch` / `CSV Table` / `URL Details`），避免过去分词（如 `URL Parsed`）。同插件其余条目也对齐这套风格，跨插件保持一致。
 - **`.ts` 扩展名**：运行时 `.ts` 文件间相对 import 带 `.ts`（冒烟测试用 Node 直接 require，不会自动补扩展名）；`.vue` 文件内可不带。
 - **`payload.ts` 必须 UI 安全**：它被 `app.vue` 与 runtime 两侧 import，**严禁出现 `import … from "node:*"`**（`node:crypto`/`fs` 等）——否则 `build:ui` 时 Rollup 报 `MISSING_EXPORT`。需 Node API 算 payload（哈希等）就拆出 runtime-only 的 `builder.ts` 承载，`payload.ts` 只留类型 + `decode*Payload`。详见 authoring-guide 第 2 节。
-- **preview 工作台必须 wire（不是可选）**：SDK 0.8.5+ 用 `createPreviewWorkbench`（`@clipbus/plugin-sdk/preview`）接管整套工作台——**不要手写 `PreviewShellApp.vue`（已废除）**。每个 renderer / draft action 都要在 `preview-host/main.ts` 顶部 `import` 其 `app.vue` 并登记进 `COMPONENTS`（key = feature 目录名 = `scenario.view`），并在 `scenarios/*.ts` 加一条 `PreviewScenario`（renderer 的 `attachment` 嵌套 `{ item, attachment:{ …payloadJson } }`；draft 用扁平 `draft`，SDK 0.9+ 还应按实际当前值提供脱敏的 `actionInput`）。`npm run dev` 看得到真实组件渲染才算完（真实踩过：整批插件 preview 全是死占位）。纯 auto-run 插件无可预览 UI：不调 `createPreviewWorkbench`，`main.ts` 渲染一句静态说明。详见 authoring-guide §10 + `node_modules/@clipbus/plugin-sdk/docs/preview.md`。
-- **非固定高度 renderer 必须调 autoFit 且传 `target`**：manifest height 为 `"auto"` 或 `{min,max}` 时，UI 须 `onMounted` 调 `clipbus.window.autoFit({ min, max, target: rootEl.value ?? undefined })`（`target` = 根元素 ref，模板根加 `ref="rootEl"`；min/max 与 manifest 一致）、`onUnmounted` 清理。漏调 autoFit → 停最小高、内容截断；**调了但漏传 `target` → autoFit 量 `document.body`，在 dev 预览工作台里 body 是整个工作台页（min-height:100%），永不收敛、每帧狂调 setHeight 死循环**（两种坑 `npm run verify` 都查不出，真实踩过，靠浏览器取证定位）。内容可能超 `max` 的列表/表格再套 `max-height + overflow-y:auto` 内部滚动；别在根 `<main>`/body 加 `overflow` 或 `height:100%`。详见 authoring-guide §8。
+- **preview 必须 wire**：每个 renderer 有真实 V2 scenario，包含 plugin/item/attachment/renderer/height，item.attachments 只放引用。createPreviewWorkbench 的 mount 挂载实际 app.vue 并返回清理函数；组件用 useCard 初始化/订阅，不缓存模块级快照。纯 Runtime Action 显示无卡片说明。详见 authoring-guide §10。
+- **非固定高度**：从 /dom 调 autoFit({ target: 内容元素 }) 并在卸载时停止；不能量整个预览 document.body。高度范围与 manifest 一致，长内容提供内部滚动。详见 authoring-guide §8。
 
 ## 两种模式速记
 

@@ -7,7 +7,7 @@
  * Output (stdout): JSON with existing plugins, categories, used IDs, and attachment types.
  * Diagnostics go to stderr so callers can parse stdout cleanly.
  */
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const repoRoot = path.resolve(process.argv[2] ?? process.cwd());
@@ -101,7 +101,6 @@ async function main() {
         category,
         pluginId: null,
         title: null,
-        permissions: [],
         detectors: [],
         renderers: [],
         actions: [],
@@ -120,7 +119,6 @@ async function main() {
         category,
         pluginId: null,
         title: null,
-        permissions: [],
         detectors: [],
         renderers: [],
         actions: [],
@@ -131,29 +129,29 @@ async function main() {
 
     const pluginId = manifest.plugin?.id ?? null;
     const title = manifest.plugin?.title ?? null;
-    const permissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
     const detectors = Array.isArray(manifest.detectors)
       ? manifest.detectors.map((d) => d.id).filter(Boolean)
       : [];
-    const renderers = Array.isArray(manifest.attachmentRenderers)
-      ? manifest.attachmentRenderers
+    const renderers = Array.isArray(manifest.renderers)
+      ? manifest.renderers
           .filter((r) => r.id)
           .map((r) => ({ id: r.id, attachmentType: r.attachmentType ?? null }))
       : [];
     const actions = Array.isArray(manifest.actions)
       ? manifest.actions
           .filter((a) => a.id)
-          .map((a) => ({ id: a.id, lifecycle: a.lifecycle ?? null }))
+          .map((a) => ({ id: a.id, inputKinds: a.inputKinds ?? [] }))
       : [];
 
     if (pluginId) usedPluginIds.add(pluginId);
+    for (const type of manifest.writes?.attachmentTypes ?? []) usedAttachmentTypes.add(type);
     for (const r of renderers) {
       if (r.attachmentType) usedAttachmentTypes.add(r.attachmentType);
     }
 
     const readmeSummary = extractReadmeSummary(await tryRead(path.join(dirPath, "README.md")));
 
-    plugins.push({ dir, category, pluginId, title, permissions, detectors, renderers, actions, readmeSummary });
+    plugins.push({ dir, category, pluginId, title, writes: manifest.writes ?? {}, detectors, renderers, actions, readmeSummary });
   }
 
   const result = {

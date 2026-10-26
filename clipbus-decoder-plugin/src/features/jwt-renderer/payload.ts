@@ -3,7 +3,7 @@
 // `Buffer` is used inline only inside createJwtPayload (runtime/test code paths),
 // never executed in the browser — that is allowed (it is a global, not an import).
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 const ATTACHMENT_TYPE = "plugin.decoder.jwt";
 
@@ -176,9 +176,9 @@ export function createJwtPayload(input: unknown): JwtPayload | null {
   };
 }
 
-export function decodeJwtPayload(payloadJson: string | null | undefined): JwtPayload | null {
+export function decodeJwtPayload(value: unknown): JwtPayload | null {
   try {
-    const parsed = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const parsed = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (parsed.kind !== "jwt_preview") return null;
     return parsed as JwtPayload;
   } catch {
@@ -186,17 +186,4 @@ export function decodeJwtPayload(payloadJson: string | null | undefined): JwtPay
   }
 }
 
-export function buildJwtArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createJwtPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "jwt",
-      searchText: payload.payloadPretty.slice(0, 200),
-      label: "JWT",
-    },
-  };
-}
+export const attachment = defineAttachment<JwtPayload>(ATTACHMENT_TYPE);

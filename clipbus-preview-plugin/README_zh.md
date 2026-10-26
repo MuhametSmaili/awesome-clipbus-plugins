@@ -1,5 +1,7 @@
 # Preview — 预览工具
 
+使用 SDK 2.x、插件协议 V2 和 manifest schema v5。
+
 Clipbus 插件，检测剪贴板中的颜色值和 Markdown 文本，分别渲染带 WCAG 对比度分析的色块卡片或经过安全过滤的 HTML 预览卡片。
 
 ## 功能

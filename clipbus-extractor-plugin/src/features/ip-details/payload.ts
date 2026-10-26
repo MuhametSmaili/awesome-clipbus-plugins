@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export const ATTACHMENT_TYPE = "plugin.extractor.ip" as const;
 
@@ -400,50 +400,19 @@ export function createIpPayload(input: unknown): IpPayload | null {
 }
 
 /**
- * Decode and validate a payloadJson string.
+ * Decode a structured payload or a serialized payload.
  * Returns null for missing or malformed data.
  */
 export function decodeIpPayload(
-  payloadJson: string | null | undefined
+  value: unknown
 ): IpPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
-    if (p.kind !== "ip_details") return null;
+    const p = (typeof value === "string" ? JSON.parse(value) : value) as { kind?: string };
+    if (!p || typeof p !== "object" || p.kind !== "ip_details") return null;
     return p as IpPayload;
   } catch {
     return null;
   }
 }
 
-/**
- * Build a detector artifact from an input object.
- * Returns null when content is not a single valid IP or CIDR.
- */
-export function buildIpArtifact(
-  input: unknown
-): PluginDetectorArtifact | null {
-  const payload = createIpPayload(input);
-  if (!payload) return null;
-
-  let searchText: string;
-  if (payload.inputType === "ipv4") {
-    searchText = `${payload.input} IPv4 ${payload.scope} Class ${payload.legacyClass} ${payload.integer}`;
-  } else if (payload.inputType === "ipv4cidr") {
-    searchText = `${payload.input} IPv4 CIDR /${payload.prefix} network:${payload.networkAddress} broadcast:${payload.broadcastAddress}`;
-  } else if (payload.inputType === "ipv6") {
-    searchText = `${payload.input} IPv6 ${payload.scope} ${payload.expanded}`.slice(0, 200);
-  } else {
-    searchText = `${payload.input} IPv6 CIDR /${payload.prefix} ${payload.networkPrefix}`.slice(0, 200);
-  }
-
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "extractor",
-      searchText,
-      label: "IP Address",
-    },
-  };
-}
+export const attachment = defineAttachment<IpPayload>(ATTACHMENT_TYPE);

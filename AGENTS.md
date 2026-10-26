@@ -1,97 +1,78 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+## 仓库与权威文档
 
-## 仓库性质：Clipbus 插件合集
+这是 Clipbus 插件合集：一个顶层 `clipbus-*-plugin/` 对应一个独立插件。
+`template-plugin/` 是复制起点与完整示例，不是被依赖的库。根目录没有 package.json 或 workspace；安装、构建、测试都在插件目录中执行。
 
-这是一个**剪贴板（Clipbus）插件合集工程**，约定 **一个插件一个文件夹**（顶层目录）。
+当前使用 `@clipbus/plugin-sdk ^2.0.0`、插件协议 V2、manifest schema 5。
+动手前先在目标目录 `npm install`，再读：
 
-- `template-plugin/` 是官方**脚手架样板 + 全能力参考**，不是被引用的库——它是被**复制**的起点。
-- **新增插件 = 把 `template-plugin/` 整体复制到一个同级新文件夹**，再按下文“新增插件流程”改名定制。
-- 仓库根目录**没有** `package.json`、没有 workspace、没有统一构建编排。每个插件**自包含、各自独立** `npm install` 与构建。所有命令都在**某个插件目录内**运行，而非仓库根。
+- `node_modules/@clipbus/plugin-sdk/docs/README.md`：文档地图。
+- `node_modules/@clipbus/plugin-sdk/API.md`：生成的签名、类型和限额真相源。
+- `docs/migration-v1-v2.md`：旧插件迁移；文档中的 1.x 示例仍需按实际 2.x API 校准。
+- `SPECIFICATION.md`：扩展协议的方法。
 
-## 最重要：权威开发文档在 SDK 包内，且当前未安装
+仓库示例与注释可能滞后，冲突以安装版本的 API.md 为准。不要查看或修改 SDK 实现源码。
 
-插件开发的全部**权威文档**（架构、`manifest.json` 字段、SDK 入口、detector/renderer/action、入参形状、UI↔Runtime RPC、权限、坑点）随 `@clipbus/plugin-sdk` 一起发布，`npm install` 后落在本地：
+## Shell 与常用命令
 
-- **文档地图（先读这个）**：`node_modules/@clipbus/plugin-sdk/docs/README.md`
-- **capability 真相源**：`node_modules/@clipbus/plugin-sdk/API.md`（codegen 直出，签名以它为准）
-- **扩展能力的规范/流程**：SDK 包内 `SPECIFICATION.md`
+用户使用 zsh。依赖用户安装工具的命令通过 `/bin/zsh -ic '<command>'` 运行，保留交互式 zsh 的全部 PATH。
 
-工作约定（见 `template-plugin/AGENTS.md`）：
-
-- ⚠️ **当前仓库尚未 `npm install`**，`node_modules/@clipbus/plugin-sdk/` 不存在。动手写代码前，先进入目标插件目录执行 `npm install`，否则读不到权威文档、类型也无法解析。
-- 本仓库内的代码、`GUIDE.md` 与注释是**示例/脚手架说明，可能滞后于已安装的 SDK**。**与 SDK 文档冲突时以 SDK 文档为准；capability 签名以 `API.md` 为准。**
-- **不要**查看或修改 `node_modules/@clipbus/plugin-sdk/` 内的 SDK 源码（由 codegen 维护）。
-- `template-plugin/GUIDE.md` 只覆盖脚手架工作流（起步、本地开发、在 Clipbus 调试、构建、测试）。
-
-## 常用命令（在某个插件目录内运行）
+在目标插件目录：
 
 ```sh
-npm install        # 必须最先执行——拉取 @clipbus/plugin-sdk 及其权威文档
-npm run dev        # Vite 预览工作台 (?view=renderer / ?view=action)；另有 dev:renderer / dev:action
-npm run build      # typecheck → lint → clean → build:runtime → build:ui → verify:build，产物到 dist/
-npm test           # Node 原生 test runner，跑 tests/ 下的 .cjs 集成/运行时测试
-npm run verify     # build + test，提交前的完整门禁
-npm run typecheck  # vue-tsc --noEmit
-npm run lint       # eslint .（lint:fix 自动修复）
+npm install
+npm run dev
+npm run verify
+npm run build
+npm test
+npm run typecheck
+npm run lint
 ```
 
-跑**单个测试文件**（无封装脚本，直接用 Node 的 test runner）：
+`verify` 依次执行 manifest 校验、类型检查、lint、Runtime/UI 构建、构建接线检查、产物 manifest 校验和 Node 测试。
+`dist/` 被 gitignore，但宿主实际加载它；源码变更后必须在用户实际加载的目录重建。
 
-```sh
-node --experimental-strip-types --require ./tests/setup.cjs --test ./tests/runtime/templateCapabilities.test.cjs
-# 追加 --test-name-pattern="template detector" 可只跑匹配名称的用例
-```
+## Runtime 与卡片页
 
-**在 Clipbus 中调试**：Settings → Plugins → Developer Plugins → **Add Path**，选中含 `manifest.json` 的插件目录；若 manifest 声明了 `install` 钩子，Clipbus 会自动以该目录为工作目录运行它（等价于 `npm install`）。Reload 重读 manifest，Run Install 重跑安装钩子。
+- Runtime：`src/plugin.ts` 从 `@clipbus/plugin-sdk/runtime` 导入 `definePlugin`，构建成 CommonJS。导出 default 或裸对象都受宿主支持。
+- Registry：`detectors`、`actions` 是 id → 函数；`messages` 是 `contract.handle(fn)` 数组。需要初始化才使用 `setup(context)`。
+- detector：`async (input, ctx) => void`，通过 `ctx.item.setAttachments` / `setSearchExtension` 写入；不能返回旧 artifact。
+- Action：`async ({ item, content }, ctx) => result.text/image/none(...)`。实际处理依据当前级联 `content`；`item` 与 `ctx.item` 始终指向 Flow 起点。
+- 卡片：manifest `renderers[].page` 指向相对插件根目录的 HTML。卡片不注册 Runtime handler；外观来自 manifest 默认值与附件 `card`。
+- 页面从 `@clipbus/plugin-sdk/view` 导入 `ctx`；用 `ctx.renderer.context(contract)` 读启动快照，随后订阅 item/env/button 事件。
+- 共享契约从 SDK 根入口导入 `defineAttachment<T>` 与 `defineMessage<Req, Resp>`；页面消息用 `contract.call(data)`。
+- 宿主已移除 Draft Action；Action 没有 lifecycle、表单页或 resolveSession。
 
-## 架构：Runtime（Node）+ UI（WebView）两侧
+## 接线不变量
 
-每个插件由两套独立构建、通过宿主桥接通信的代码组成：
+1. detector / Action 的 manifest id 与 Runtime registry key 一一对应。
+2. renderer 的 id 对应 `src/features/<id>/`，包含 main.ts、app.vue、index.html。通用构建脚本自动读取 manifest；renderer 不出现在 Runtime registry。
+3. `page` 通常为 `dist/ui/renderers/<id>/index.html`；引用页内相对资源。每个输出页使用独立目录，避免构建清空互相覆盖。
+4. 附件类型必须以 `plugin.id + "."` 开头，全部写入类型列在 `writes.attachmentTypes`；搜索 scope 列在 `writes.searchScopes`。
+5. `scripts/build-ui.mjs` 与 `verify-build.mjs` 的通用版本来自 generator 的 `assets/scaffold/scripts/`。模板的 UI 构建版本含演示专用源映射，不能直接覆盖派生插件。
+6. package.json 按字段合并 SDK/scripts/共享开发依赖，保留插件名称、说明与业务依赖。
 
-- **Runtime 侧（Node）**：唯一入口 `src/plugin.ts` → `definePlugin({ setup() })`，按 **manifest id 为 key** 注册 `attachmentRenderers` / `detectors` / `actions` / `messageHandlers`。从 `@clipbus/plugin-sdk/runtime` 导入。`scripts/build-runtime.mjs` 用 **esbuild** 打成 `dist/plugin.cjs`（CJS，宿主 `require()` 它）。
-- **UI 侧（WebView）**：每个 feature 一套 `app.vue` + `main.ts` + `index.html`。从 `@clipbus/plugin-sdk/ui` 导入 `clipbus` 对象、从 `/dom` 导入 `patchConsole`/`patchTextInputState`。`scripts/build-ui.mjs` 用 **Vite** 按页打成 IIFE，输出到 `dist/ui/{renderers,actions}/<id>/`。
-- **两侧通信**：① 宿主事件 **topic**（如 `clipbus.item.attachment` / `clipbus.theme`），UI 用 `src/shared/composables/useTopicRef.ts` 订阅为响应式 ref；② **RPC**：UI `clipbus.runtime.invoke({ key, payload })` ↔ Runtime 用 `defineMessage<Req,Resp>(key).handle(fn)` 注册的 `messageHandlers`。
+## 数据、事件与限额
 
-### 四种扩展点
+输入只有 `text` / `image`。payload 是结构化 JSON 对象；共享 payload.ts 不能导入 Node/DOM API，Node 运算放独立 Runtime 文件。
+每条附件是 `{ type, key, updatedAt, own, payload, card? }`；item.attachments 仅包含引用 `{ type, key, updatedAt, own }`。
+不要继续使用 payloadJson、owner、historyID、旧 topic 全局或权限字段。
 
-| 扩展点 | Runtime 侧 | UI 侧 | 要点 |
-|---|---|---|---|
-| **detector** | `detect()` 返回 artifacts | 无 | 输入仅三种 kind；产出 `{ attachmentType, attachmentKey, payloadJson, searchProjection }` |
-| **attachment renderer** | `resolveAttachment()` | `app.vue` 卡片 | 高度三形态：定值数字 / `"auto"` / `{min,max}`（配 `clipbus.window.autoFit()`） |
-| **action** | `auto-run`：`runAutoAction()` 返回 `actionResult.text/image/none`；`draft`：`resolveSession()` 给初始 draft/buttons | `draft` 才有 `app.vue` 表单，提交走 `clipbus.action.complete()` | lifecycle 在 manifest 声明 |
-| **messageHandlers** | `defineMessage().handle()` 包一层 host.* | UI 通过 `clipbus.runtime.invoke` 调 | UI↔Node 自定义 RPC 桥 |
+Runtime 写入必须 await，处理函数成功后提交；ctx 在调用结束后失效。
+detector 每次成功执行整体替换自己的附件和搜索结果，包含 recopy。本次不写意味着清空，不应通过直接 return 跳过重复复制。
+页面/消息的交互状态使用独立类型，避免与 detector 输出产生重复卡片；编辑内容会清空所有附件。
 
-## 跨文件接线不变量（最易踩坑，务必对齐）
+按 SDK 2.0 限额预算：单 payload 2 MiB、每插件每条目合计 64 个附件/10 条搜索扩展、单条搜索文本 4 KiB。按 UTF-8 字节检查，不按 JS 字符数。最终数字以 API.md 为准。
 
-新增/重命名任何能力时，以下几处**必须同步**，否则构建或宿主加载失败：
+## UI、preview 与验证
 
-1. **三处 id 必须完全一致**：`manifest.json` 里能力的 `id` === `src/plugin.ts setup()` 注册的 handler key === UI 构建输出目录名。
-2. **`manifest.uiEntry`** 必须指向 `renderers/<id>/index.html` 或 `actions/<id>/index.html`，与 `dist/ui` 布局对应。
-3. **`scripts/build-ui.mjs` 的 `discoverPages()`** 按命名约定把 `src/features/<name>/` 映射到 manifest id（`template-{name}`，其中 `preview-renderer`→`template-renderer`）。**嵌套 UI 目录**（如 `capability-gallery/*-ui/`）不走约定，必须在 `NESTED_OVERRIDES` 里登记映射，**漏登记构建会直接抛错**。
-4. **`scripts/verify-build.mjs` 硬编码了**期望出现的 runtime bundle 字符串清单与 UI 产物目录清单。新增/改名能力后，要把它的 allowlist 一并更新，否则 `build` 末尾校验失败。
-5. `tests/integration/galleryWiring.test.cjs` 等契约测试会校验 manifest ↔ catalog ↔ 构建映射的一致性。
+- CSS 使用 `var(--clipbus-*, 回退色)`；宿主绘制卡片外框/标题/按钮，页面根容器透明、水平 padding 为 0。
+- 非固定高度卡片用 DOM `autoFit({ target })` 观察内容尺寸元素，卸载时停止；不要观察整个预览工作台的 document.body。高度是 `{ min?, max? }`，固定高度两者相等。
+- 页面 DOM 辅助为 `forwardConsole`、`reportInputState`、`autoFit`。
+- 每个 renderer 都要有真实 V2 PreviewScenario，并在 preview-host/main.ts 挂载实际组件。scenario 包含真实 plugin 身份、item 快照、结构化 attachment、manifest renderer 默认值与 height。保留各插件自己的示例。
+- 纯 Runtime Action 插件显示无卡片预览说明。fake Host 不能代替真实宿主的文件、提交、写入声明及总量限额验证。
+- 测试使用 Node .cjs；保留解析算法的业务向量，用构建后的 dist 运行 detector/Action/message 行为测试。公共 harness 为 tests/support/plugin.cjs；旧 tests/setup.cjs 已移除。
 
-## Feature 内部约定
-
-- 每个 feature 目录下的 **`payload.ts` 是该附件 payload 的单一真相源**：`create*Payload`（构造）/ `decode*Payload`（带校验解析）/ `build*Artifact`（detector 产出）。payload 以 JSON 存入 `payloadJson`，并带 `version` 字段用于迁移。
-- `src/shared/` 是跨 feature 的薄工具层：`display.ts`（`buildContentDisplay`/`buildItemDisplay`/`mapContentKind`/`buildSearchText`）、`debug.ts`（`cloneJSON`/快照/格式化）、`base.css`（主题 token）、`composables/useTopicRef.ts`。一般无需改动。
-- `src/features/capability-gallery/` 是“全 SDK 能力演示”参考（覆盖几乎全部 capability/host event/权限/高度形态），写新插件时当字典查，不要把它的“厨房水槽”整套抄进精简插件。
-
-## 约定与坑
-
-- **输入只有三种 kind**：`text` / `image` / `path_reference`（**snake_case**；旧拼写 `pathReference` 会被测试显式拒绝）。content envelope 是**扁平**的——变体字段与 `kind` 同级，不嵌套。
-- **UI 的 CSS 必须用主题 token** `var(--clipbus-..., 回退色)`，不能写裸 hex（测试会扫描 `<style scoped>` 强制）。
-- **esbuild footer hack**：`build-runtime.mjs` 把 `module.exports.default` 解包成 `module.exports`，因为宿主 `require()` 的是裸导出。入口**不要**用 TS `export =`（会破坏测试用 `--experimental-strip-types` 直接 `require('.ts')` 的加载）。
-- **测试是 `.cjs`**，通过 `require()` 直接加载 `.ts` 源（`--experimental-strip-types`），`tests/setup.cjs` 为预加载 polyfill。
-- **权限**在 `manifest.permissions[]` 声明（`setAttachment` / `setSearchExtension` / `setTags` / `setPinned`），对应的 host 写操作才被放行。
-- **Plugin Pro 配额**：免费档 action 上限为 3；声明更多会触发宿主的 gating 提示。template **故意**多声明 action 以演示该行为——不是 bug。
-
-## 新增插件流程
-
-1. 复制 `template-plugin/` 为同级新文件夹（如 `my-plugin/`），`cd` 进去 `npm install`。
-2. 改 `manifest.json`：`plugin.id`、`title`、各能力 `id` 与 `attachmentType`、能力清单、`permissions`。
-3. 改 `src/plugin.ts`：`setup()` 注册的 handler key 必须与 manifest 的 `id` 一一对应。
-4. 按需改各 `src/features/<feature>/` 的 `payload.ts` / `detector.ts` / `renderer.ts` / `action.ts` / `app.vue`；删掉用不到的 feature 时，记得同步删 manifest 条目、`plugin.ts` 注册、以及 `build-ui.mjs`/`verify-build.mjs` 中的相关引用。
-5. `npm run verify` 通过后，按上文“在 Clipbus 中调试”加载验证。
+Clipbus 调试：Settings → Plugins → Developer Plugins → Add Path，选择有 manifest.json 的目录；Reload 重读配置，Run Install 重跑安装钩子。

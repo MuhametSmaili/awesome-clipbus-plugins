@@ -2,9 +2,9 @@
 
 *English · [中文](./GUIDE_zh.md)*
 
-This project (`plugins/template-plugin/`) is the **scaffold and runnable example** for Clipbus third-party plugins. This file covers only the **scaffold workflow** (getting started, local development, debugging inside Clipbus, building, testing) and the **project structure**.
+This project (`clipbus-text-plugin/`) provides nine text transformation Actions for Clipbus on SDK 2.0.0 and protocol V2 (manifest schema 5). This file covers only the **scaffold workflow** (getting started, local development, debugging inside Clipbus, building, testing) and the **project structure**.
 
-**The authoritative knowledge for plugin development** (architecture, manifest, SDK entry points, detector/renderer/action, input shapes, RPC, permissions, pitfalls) **ships with the SDK package**. After `npm install` it lives in `node_modules/@clipbus/plugin-sdk/docs/` — and always matches the SDK version you currently have installed.
+**The authoritative knowledge for plugin development** (architecture, manifest, SDK entry points, detector/renderer/action, input shapes, messages, pitfalls) **ships with the SDK package**. After `npm install` it lives in `node_modules/@clipbus/plugin-sdk/docs/` — and always matches the SDK version you currently have installed.
 
 - **AI / tools**: read this project's root [`AGENTS.md`](./AGENTS.md) first; it points to the stable entry point of the SDK docs.
 - **Documentation map**: `node_modules/@clipbus/plugin-sdk/docs/README.md`
@@ -37,19 +37,7 @@ The dependency `@clipbus/plugin-sdk` is an independently published npm package (
 npm run dev
 ```
 
-Starts the Vite Preview Workbench. The workbench simulates the host pushing a bootstrap and offers two views:
-
-- `?view=renderer` — preview the attachment renderer card
-- `?view=action` — preview the draft action form
-
-The browser hot-reloads after you edit `src/features/*/app.vue`.
-
-You can also open a single view directly:
-
-```sh
-npm run dev:renderer
-npm run dev:action
-```
+Starts the Text Tools preview page. These nine Actions run without a WebView, so this page lists their titles and explains how to run them in Clipbus. There are no renderer or Action UI scenarios.
 
 ### Debugging inside Clipbus
 
@@ -61,7 +49,7 @@ Clipbus → Settings → Plugins → the Developer Plugins section provides life
 
 | Button | Behavior |
 |---|---|
-| **Reload** | Re-reads `manifest.json`, refreshing fingerprint / permissions / loadState. Does **not** re-run install. |
+| **Reload** | Re-reads `manifest.json`, refreshing plugin metadata and load state. Does **not** re-run install. |
 | **Run Install** | Re-runs the install hook in place and updates `lastInstallExecution`. Does **not** re-read the manifest. |
 | **View Logs** | Shown in the `installFailed` state; opens the most recent install log (supports live tail). |
 
@@ -73,7 +61,7 @@ States: `installing` → installing; `installFailed` → non-zero exit code or r
 npm run build
 ```
 
-In order: clean → build:runtime → build:ui → verify:build, output to `dist/`.
+Runs typecheck → lint → clean → build:runtime → build:ui → verify:build, output to `dist/`. This plugin has no renderer pages to bundle.
 
 ### Verifying your plugin
 
@@ -81,7 +69,7 @@ In order: clean → build:runtime → build:ui → verify:build, output to `dist
 npm run verify
 ```
 
-Runs in order: **manifest validation → build → tests**.
+Runs in order: **manifest validation → build → runtime manifest validation → tests**.
 
 The manifest validation step (`npm run verify:manifest`) checks your `manifest.json`
 for structural issues — namespace violations, unsupported schema versions, legacy fields,
@@ -100,35 +88,34 @@ npx clipbus-validate-manifest . --runtime  # also checks built file existence
 ### Testing
 
 ```sh
-npm test         # integration tests under tests/runtime/
+npm test         # tests/runtime/ and tests/integration/ (run npm run build first)
 ```
 
 ---
 
 ## 1. Project structure
 
-A new plugin is split by feature, each feature a self-contained directory. Recommended layout:
+The text transformation code is organized as follows:
 
 ```text
-your-plugin/
-├── manifest.json
-├── package.json                        ← depends on @clipbus/plugin-sdk (npm install)
-├── scripts/                            ← build:runtime / build:ui / verify:build
+clipbus-text-plugin/
+├── manifest.json                       ← nine text Actions, no renderers or detectors
+├── package.json                        ← @clipbus/plugin-sdk ^2.0.0
+├── scripts/                            ← runtime build and manifest-driven UI verification
 ├── src/
-│   ├── features/<feature-name>/        ← one folder per capability
-│   │   ├── payload.ts                  ← data types / draft types
-│   │   ├── detector.ts                 ← detector (if any)
-│   │   ├── renderer.ts                 ← renderer runtime side (if any)
-│   │   ├── action.ts                   ← action runtime side (if any)
-│   │   ├── app.vue                     ← UI entry (renderer or draft action)
-│   │   ├── main.ts / index.html        ← Vite entry
-│   ├── shared/                         ← thin utility layer across features
-│   ├── preview/                        ← local preview workbench (dev-only)
-│   └── plugin.ts                       ← definePlugin entry; registers all handlers
-└── tests/runtime/
+│   ├── features/line-tools/
+│   │   ├── transforms.ts               ← pure text transforms, including Unicode graphemes
+│   │   ├── sort.ts / dedup.ts / trim.ts ← ActionHandler factories
+│   │   ├── strip-ansi.ts
+│   │   ├── reverse-lines.ts / reverse-characters.ts / sort-characters.ts
+│   │   └── json.ts                     ← Pretty JSON and Minify JSON
+│   ├── shared/                         ← shared theme styles and card helper
+│   ├── preview/preview-host/           ← static guidance for this plugin
+│   └── plugin.ts                       ← definePlugin({ actions })
+└── tests/                              ← pure transforms, built runtime and preview checks
 ```
 
-For template-plugin's concrete feature list (`preview-renderer/` / `expanded-renderer/` / `auto-action/` / `capability-gallery/`), see the "Capabilities demonstrated" section in [README.md](./README.md).
+Actions receive `{ item, content }`; `content` is the current Flow value. They return `result.text(output, message)` or `result.none(message)`. This plugin does not write attachments, search entries, tags or pin state, so its `writes` lists are empty.
 
 > The SDK is a standalone package `@clipbus/plugin-sdk`, synced by codegen — **do not edit it by hand**. To extend capabilities see the package's `SPECIFICATION.md` ([`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)), Ch 3.
 

@@ -14,7 +14,7 @@
 
 合集里的"共享基建"并非都以 template 为源。分两类：
 
-1. **template 即真相**——绝大多数共享文件（构建脚本里的 `build-runtime.mjs`/`install.mjs`、各 config、`env.d.ts`、`AGENTS.md`、`src/shared/*`、`tests/setup.cjs`、`package.json` 的 scripts 段 + SDK 版本）。template 改了，逐字同步给每个插件。
+1. **template 即真相**——绝大多数共享文件（构建脚本里的 `build-runtime.mjs`/`install.mjs`、各 config、`env.d.ts`、`AGENTS.md`、`src/shared/*`、`tests/support/plugin.cjs`、`package.json` 的 scripts 段 + SDK 版本）。template 改了，逐字同步给每个插件。
 
 2. **generator 脚手架即真相**——`scripts/build-ui.mjs` 与 `scripts/verify-build.mjs`。各插件用的是 `clipbus-plugin-generator/assets/scaffold/scripts/` 里的**通用 manifest 驱动版**（自动按 manifest 适配能力）；template 自带的是 **demo 专用版**（硬编码了 template 自己那些演示能力的 allowlist / NESTED_OVERRIDES）。**两者故意不一致。**
 
@@ -47,9 +47,10 @@
 
 ## 当前已知的"逐字共享集"
 
-**这是观测快照，不是硬清单**——`check-consistency.mjs` 用"template 的实际 tracked 文件 − 各插件自定义 denylist"**动态导出**它，所以模板新增共享文件时会自动纳入。当前为 10 个：
+**这是观测快照，不是硬清单**——`check-consistency.mjs` 用"template 的实际 cached + untracked 文件（排除已删除路径） − 各插件自定义 denylist"**动态导出**它，所以模板新增共享文件时会自动纳入。当前为 12 个（含尚未暂存的新增文件）：
 
 ```
+.npmrc
 AGENTS.md
 env.d.ts
 eslint.config.mjs
@@ -57,14 +58,15 @@ tsconfig.json
 vite.config.mjs
 scripts/build-runtime.mjs
 scripts/install.mjs
+scripts/ui-pages.mjs
 src/shared/base.css
-src/shared/composables/useTopicRef.ts
-tests/setup.cjs
+src/shared/composables/useCard.ts
+tests/support/plugin.cjs
 ```
 
 注意边界：
-- `tests/setup.cjs` 共享；`tests/**/*.test.cjs` **不**共享（各插件测自己的 feature）。
-- `src/shared/debug.ts` / `display.ts` 只服务 template 的 demo features；生产插件没有引用时不传播。不能仅因它们位于 `src/shared/` 就复制死代码（2026-07-22 修：旧校验器将二者误判为逐字共享，对 9 个插件报 18 个 missing）。
+- `tests/support/plugin.cjs` 共享；`tests/**/*.test.cjs` **不**共享（各插件测自己的 feature）。
+- `src/shared/debug.ts` / `display.ts` / `digest.ts` 只服务 template 的 demo features；生产插件没有引用时不传播。不能仅因它们位于 `src/shared/` 就复制死代码（2026-07-22 修：旧校验器将二者误判为逐字共享，对 9 个插件报 18 个 missing）。
 - `package.json` 不在逐字集——走**字段级合并**。
 - `package-lock.json` 不在逐字集——各插件依赖树天生不同（实测 template 3953 行、各插件各 4422 行且 hash 互异）。`check-consistency.mjs` 的 `DENY_EXACT` 已显式排除它（2026-06-28 修：此前漏排，脚本把 lockfile 当逐字共享、对 9 个插件长期 false-fail；同次上游同步还删除了 template 自带的 lockfile，本仓决定各插件**保留**各自 lockfile 以保可复现安装）。
   - 更新依赖后必须检查 lockfile diff，不能接受 npm 版本导致的无关平台元数据 churn。真实踩过：npm 9.5.0 重写含 `sharp` 的锁文件时删除 29 个 `libc`（glibc/musl）约束；应从 Git 基线保留未变依赖的元数据，只更新目标依赖的声明、版本、tarball 与 integrity。
@@ -94,3 +96,13 @@ tests/setup.cjs
 
 此外，schema/SDK 的 authoring 契约变化必须同步 generator 的 `SKILL.md`、
 `references/architecture.md`、`references/authoring-guide.md` 与 scaffold fallback；否则新生成插件仍会使用旧字段或旧 Action 语义。分叉脚本与 authoring 契约两类耦合都要一起收敛。
+
+## SDK 2.0 / schema 5 实战规则
+
+- 旧 capabilityClients 文件消失不意味着全部能力被删；从公共 API.md 的方法表抽取，并对照 Overview 数量。0.9.9→2.0.0 实测为 33→19 公共方法、11→3 事件；跨协议改名需要结合迁移正文判断。
+- 迁移 renderer/page/inputKinds/writes、函数式 detectors/actions、typed messages、对象 payload 和 /view ctx；旧 Runtime renderer 与 Action 表单入口不保留。
+- preview 改为 V2 快照：plugin、item、attachment、renderer、height，item.attachments 仅引用。用 computeBootstrap 检查真实场景，mount 挂载各自组件；不能复制模板演示内容。
+- detector recopy 必须继续写完整结果。每个插件跨全部 detector 合计最多 64 个附件、10 个搜索项；单 payload 2 MiB，单搜索文本 4 KiB。写前按 UTF-8 字节预算。
+- 新 ui-pages.mjs 是共享构建规划器；通用 build-ui 仍来自 generator。tests/support/plugin.cjs 是通用构建产物 harness；tests/support/png.cjs 与 src/shared/digest.ts 仅服务模板演示，排除传播。
+- check-consistency 要包含尚未 git add 的新增文件并过滤已删除文件，否则会漏查新 helper 或把已删除 harness/插件报成缺失。分叉脚本对 generator 资产比较，缺文件也报错。
+- 删除某个宿主不再支持的贡献时，连实现、注册、UI、scenario、测试、指南与根索引一起清理；纯该贡献的插件按用户确认的范围退役。不要用空壳或隐式替代交互冒充迁移完成。

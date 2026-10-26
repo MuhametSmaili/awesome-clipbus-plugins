@@ -2,9 +2,9 @@
 
 *[English](./GUIDE.md) · 中文*
 
-本工程（`plugins/template-plugin/`）是 Clipbus 三方插件的**脚手架与可运行示例**。本文件只讲**脚手架工作流**（起步、本地开发、在 Clipbus 中调试、构建、测试）与**工程结构**。
+本工程（`clipbus-text-plugin/`）提供九个 Clipbus 文本变换 Action，基于 SDK 2.0.0 与协议 V2（manifest schema 5）。本文件只讲**脚手架工作流**（起步、本地开发、在 Clipbus 中调试、构建、测试）与**工程结构**。
 
-**插件开发的权威知识**（架构、manifest、SDK 入口、detector/renderer/action、入参形状、RPC、权限、坑点）**随 SDK 包发布**，`npm install` 后在 `node_modules/@clipbus/plugin-sdk/docs/`——它始终对应你当前安装的 SDK 版本。
+**插件开发的权威知识**（架构、manifest、SDK 入口、detector/renderer/action、入参形状、消息、坑点）**随 SDK 包发布**，`npm install` 后在 `node_modules/@clipbus/plugin-sdk/docs/`——它始终对应你当前安装的 SDK 版本。
 
 - **AI / 工具**：请先读本工程根目录的 [`AGENTS.md`](./AGENTS.md)，它指向 SDK 文档的稳定入口。
 - **文档地图**：`node_modules/@clipbus/plugin-sdk/docs/README.md`
@@ -37,19 +37,7 @@ npm install
 npm run dev
 ```
 
-启动 Vite 预览工作台（Preview Workbench）。工作台模拟宿主推送 bootstrap，提供两个视图：
-
-- `?view=renderer` — 预览 attachment renderer 卡片
-- `?view=action` — 预览 draft action 表单
-
-修改 `src/features/*/app.vue` 后浏览器热更新。
-
-也可以直接打开单一视图：
-
-```sh
-npm run dev:renderer
-npm run dev:action
-```
+启动 Text Tools 预览页。九个 Action 均无 WebView，该页面列出它们的标题，并说明如何在 Clipbus 中运行。此插件没有 renderer 或 Action UI 场景。
 
 ### 在 Clipbus 中调试
 
@@ -61,7 +49,7 @@ Clipbus → Settings → Plugins → Developer Plugins 区段提供开发插件�
 
 | 按钮 | 行为 |
 |---|---|
-| **重新加载** | 重读 `manifest.json`，刷新 fingerprint / permissions / loadState。**不**重跑 install。 |
+| **重新加载** | 重读 `manifest.json`，刷新插件元数据与加载状态。**不**重跑 install。 |
 | **执行安装** | 就地重跑 install hook，更新 `lastInstallExecution`。**不**重读 manifest。 |
 | **查看日志** | `installFailed` 状态下显示，打开最近一次安装日志（支持实时 tail）。 |
 
@@ -73,7 +61,7 @@ Clipbus → Settings → Plugins → Developer Plugins 区段提供开发插件�
 npm run build
 ```
 
-依次：clean → build:runtime → build:ui → verify:build，输出到 `dist/`。
+依次：typecheck → lint → clean → build:runtime → build:ui → verify:build，输出到 `dist/`。此插件没有需要打包的卡片页。
 
 ### 校验插件
 
@@ -81,7 +69,7 @@ npm run build
 npm run verify
 ```
 
-依次执行：**manifest 校验 → 构建 → 测试**。
+依次执行：**manifest 校验 → 构建 → runtime manifest 校验 → 测试**。
 
 manifest 校验步骤（`npm run verify:manifest`）会在构建前检查 `manifest.json` 的结构
 问题——命名空间违规、不支持的 schemaVersion、legacy 字段、非 canonical 类型等。
@@ -99,35 +87,34 @@ npx clipbus-validate-manifest . --runtime  # 额外检查构建产物是否存�
 ### 测试
 
 ```sh
-npm test         # tests/runtime/ 集成测试
+npm test         # tests/runtime/ 与 tests/integration/；先执行 npm run build
 ```
 
 ---
 
 ## 1. 工程结构
 
-新插件按 feature 切分，每个 feature 一个自洽目录。推荐布局：
+文本变换代码的结构：
 
 ```text
-your-plugin/
-├── manifest.json
-├── package.json                        ← 依赖 @clipbus/plugin-sdk（npm 安装）
-├── scripts/                            ← build:runtime / build:ui / verify:build
+clipbus-text-plugin/
+├── manifest.json                       ← 九个文本 Action，无 renderer 或 detector
+├── package.json                        ← @clipbus/plugin-sdk ^2.0.0
+├── scripts/                            ← runtime 构建与 manifest 驱动的 UI 校验
 ├── src/
-│   ├── features/<feature-name>/        ← 每个能力一个文件夹
-│   │   ├── payload.ts                  ← 数据类型 / draft 类型
-│   │   ├── detector.ts                 ← detector（若有）
-│   │   ├── renderer.ts                 ← renderer runtime 端（若有）
-│   │   ├── action.ts                   ← action runtime 端（若有）
-│   │   ├── app.vue                     ← UI 入口（renderer 或 draft action）
-│   │   ├── main.ts / index.html        ← Vite 入口
-│   ├── shared/                         ← 跨 feature 的薄工具层
-│   ├── preview/                        ← 本地预览工作台（dev-only）
-│   └── plugin.ts                       ← definePlugin 入口；注册所有 handler
-└── tests/runtime/
+│   ├── features/line-tools/
+│   │   ├── transforms.ts               ← 纯文本变换，包括 Unicode 字素处理
+│   │   ├── sort.ts / dedup.ts / trim.ts ← ActionHandler 工厂函数
+│   │   ├── strip-ansi.ts
+│   │   ├── reverse-lines.ts / reverse-characters.ts / sort-characters.ts
+│   │   └── json.ts                     ← Pretty JSON 与 Minify JSON
+│   ├── shared/                         ← 共享主题样式与卡片辅助函数
+│   ├── preview/preview-host/           ← 插件使用说明页
+│   └── plugin.ts                       ← definePlugin({ actions })
+└── tests/                              ← 纯函数、构建后 runtime 与预览检查
 ```
 
-template-plugin 自带的具体 feature 列表（`preview-renderer/` / `expanded-renderer/` / `auto-action/` / `capability-gallery/`）见 [README_zh.md](./README_zh.md) "演示的能力"。
+Action 接收 `{ item, content }`，其中 `content` 是当前 Flow 级联值；通过 `result.text(output, message)` 或 `result.none(message)` 返回结果。此插件不写附件、搜索条目、标签或置顶状态，因此 `writes` 列表为空。
 
 > SDK 是独立包 `@clipbus/plugin-sdk`，由 codegen 同步、**不要手动改**。扩展 capability 见包内 `SPECIFICATION.md`（[`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)）Ch 3。
 

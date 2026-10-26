@@ -8,15 +8,11 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, 'manifest.json'), 'utf8'));
 
-const sampleItem = {
-  id: 'item-1',
-  type: 'text',
-  tags: [],
-  sourceAppID: 'com.example.app',
-};
+const { fakeHost, itemSnapshot, setupPlugin, imageContent } = require('../support/plugin.cjs');
+const sampleItem = itemSnapshot('text');
 
 function makeInput(text) {
-  return { item: sampleItem, content: { kind: 'text', text }, attachments: [] };
+  return { item: sampleItem, content: { kind: 'text', text }, trigger: 'copy' };
 }
 
 // ---------------------------------------------------------------------------
@@ -29,30 +25,29 @@ test('manifest has geo-detector', () => {
 });
 
 test('manifest has geo-coordinates renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('geo-coordinates'), 'missing geo-coordinates renderer');
 });
 
-test('geo-coordinates uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'geo-coordinates');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('geo-coordinates page references dist/ui/renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'geo-coordinates');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
-test('geo-detector attachmentTypes contains plugin.extractor.geo', () => {
-  const det = manifest.detectors.find((d) => d.id === 'geo-detector');
-  assert.ok(det.attachmentTypes.includes('plugin.extractor.geo'));
+test('manifest declares attachment type plugin.extractor.geo', () => {
+  assert.ok(manifest.writes.attachmentTypes.includes('plugin.extractor.geo'));
 });
 
 test('geo-coordinates renderer attachmentType is plugin.extractor.geo', () => {
-  const r = manifest.attachmentRenderers.find((r) => r.id === 'geo-coordinates');
+  const r = manifest.renderers.find((r) => r.id === 'geo-coordinates');
   assert.equal(r.attachmentType, 'plugin.extractor.geo');
 });
 
 test('toDms carries 60" up to the next minute/degree (no invalid 60.0 component)', () => {
-  const { buildGeoArtifact } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
-  const artifact = buildGeoArtifact(makeInput('10.999999, 20.0'));
-  assert.ok(artifact, 'should produce artifact');
-  const p = JSON.parse(artifact.payloadJson);
+  const { createGeoPayload } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
+  const payload = createGeoPayload(makeInput('10.999999, 20.0'));
+  assert.ok(payload, 'should produce payload');
+  const p = payload;
   assert.ok(!p.latDms.includes('60.0'), `latDms must not contain a 60.0 second: ${p.latDms}`);
   assert.equal(p.latDms, `11°0'0.0"N`);
 });
@@ -61,82 +56,93 @@ test('toDms carries 60" up to the next minute/degree (no invalid 60.0 component)
 // Factory methods
 // ---------------------------------------------------------------------------
 
-test('createGeoDetector returns a handler with detect method', () => {
+test('createGeoDetector returns a detector function', () => {
   const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
   const handler = createGeoDetector();
-  assert.equal(typeof handler.detect, 'function');
+  assert.equal(typeof handler, 'function');
 });
 
-test('createGeoRenderer returns a handler with resolveAttachment method', () => {
-  const { createGeoRenderer } = require(path.resolve(root, 'src/features/geo-coordinates/renderer.ts'));
-  const handler = createGeoRenderer();
-  assert.equal(typeof handler.resolveAttachment, 'function');
-});
 
 // ---------------------------------------------------------------------------
 // Detector: fires on valid coordinate pairs
 // ---------------------------------------------------------------------------
 
-test('detector fires on "37.7749, -122.4194"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('37.7749, -122.4194'));
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].attachmentType, 'plugin.extractor.geo');
+test('detector fires on "37.7749, -122.4194"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('37.7749, -122.4194'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  assert.equal(attachments[0].type, 'plugin.extractor.geo');
 });
 
-test('detector fires on "40.7128° N, 74.0060° W"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('40.7128° N, 74.0060° W'));
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].attachmentType, 'plugin.extractor.geo');
+test('detector fires on "40.7128° N, 74.0060° W"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('40.7128° N, 74.0060° W'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  assert.equal(attachments[0].type, 'plugin.extractor.geo');
 });
 
 // ---------------------------------------------------------------------------
 // Detector: rejects invalid / prose inputs
 // ---------------------------------------------------------------------------
 
-test('detector rejects "hello"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('hello'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects "hello"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('hello'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects bare integer pair "1, 2"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('1, 2'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects bare integer pair "1, 2"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('1, 2'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects out-of-range "200, 300"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('200, 300'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects out-of-range "200, 300"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('200, 300'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects out-of-range "-91, 0"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('-91, 0'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects out-of-range "-91, 0"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('-91, 0'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects 3-number CSV "1.0,2.0,3.0"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('1.0,2.0,3.0'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects 3-number CSV "1.0,2.0,3.0"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('1.0,2.0,3.0'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects prose "meet at 37.7, -122.4 ok"', async () => {
-  const { createGeoDetector } = require(path.resolve(root, 'src/features/geo-coordinates/detector.ts'));
-  const det = createGeoDetector();
-  const artifacts = await det.detect(makeInput('meet at 37.7, -122.4 ok'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects prose "meet at 37.7, -122.4 ok"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['geo-detector'];
+  await det(makeInput('meet at 37.7, -122.4 ok'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -144,10 +150,10 @@ test('detector rejects prose "meet at 37.7, -122.4 ok"', async () => {
 // ---------------------------------------------------------------------------
 
 test('latitude DMS for 37.7749 is "37°46\'29.6\\"N"', () => {
-  const { buildGeoArtifact } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
-  const artifact = buildGeoArtifact(makeInput('37.7749, -122.4194'));
-  assert.ok(artifact, 'should produce artifact');
-  const p = JSON.parse(artifact.payloadJson);
+  const { createGeoPayload } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
+  const payload = createGeoPayload(makeInput('37.7749, -122.4194'));
+  assert.ok(payload, 'should produce payload');
+  const p = payload;
   assert.equal(p.latDms, "37°46'29.6\"N");
 });
 
@@ -156,10 +162,10 @@ test('latitude DMS for 37.7749 is "37°46\'29.6\\"N"', () => {
 // ---------------------------------------------------------------------------
 
 test('hemisphere folding: "10.0 S, 20.0 W" gives negative lat & lng', () => {
-  const { buildGeoArtifact } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
-  const artifact = buildGeoArtifact(makeInput('10.0 S, 20.0 W'));
-  assert.ok(artifact, 'should produce artifact');
-  const p = JSON.parse(artifact.payloadJson);
+  const { createGeoPayload } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
+  const payload = createGeoPayload(makeInput('10.0 S, 20.0 W'));
+  assert.ok(payload, 'should produce payload');
+  const p = payload;
   assert.ok(p.lat < 0, `lat should be negative, got ${p.lat}`);
   assert.ok(p.lng < 0, `lng should be negative, got ${p.lng}`);
 });
@@ -169,19 +175,19 @@ test('hemisphere folding: "10.0 S, 20.0 W" gives negative lat & lng', () => {
 // ---------------------------------------------------------------------------
 
 test('OSM URL contains decimal lat and lng', () => {
-  const { buildGeoArtifact } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
-  const artifact = buildGeoArtifact(makeInput('37.7749, -122.4194'));
-  assert.ok(artifact);
-  const p = JSON.parse(artifact.payloadJson);
+  const { createGeoPayload } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
+  const payload = createGeoPayload(makeInput('37.7749, -122.4194'));
+  assert.ok(payload);
+  const p = payload;
   assert.ok(p.osmUrl.includes('37.7749'), `osmUrl should contain lat: ${p.osmUrl}`);
   assert.ok(p.osmUrl.includes('-122.4194'), `osmUrl should contain lng: ${p.osmUrl}`);
 });
 
 test('Google URL contains decimal lat and lng', () => {
-  const { buildGeoArtifact } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
-  const artifact = buildGeoArtifact(makeInput('37.7749, -122.4194'));
-  assert.ok(artifact);
-  const p = JSON.parse(artifact.payloadJson);
+  const { createGeoPayload } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
+  const payload = createGeoPayload(makeInput('37.7749, -122.4194'));
+  assert.ok(payload);
+  const p = payload;
   assert.ok(p.googleUrl.includes('37.7749'), `googleUrl should contain lat: ${p.googleUrl}`);
   assert.ok(p.googleUrl.includes('-122.4194'), `googleUrl should contain lng: ${p.googleUrl}`);
 });
@@ -205,47 +211,9 @@ test('decodeGeoPayload returns null for bad payloads', () => {
   assert.equal(decodeGeoPayload('{"kind":"other"}'), null);
   assert.equal(decodeGeoPayload(null), null);
   assert.equal(decodeGeoPayload(undefined), null);
-});
-
-// ---------------------------------------------------------------------------
-// Renderer
-// ---------------------------------------------------------------------------
-
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createGeoRenderer } = require(path.resolve(root, 'src/features/geo-coordinates/renderer.ts'));
-  const renderer = createGeoRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '37.7749, -122.4194' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.extractor',
-      attachmentType: 'plugin.extractor.geo',
-      attachmentKey: 'primary',
-      payloadJson: 'bad-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false);
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createGeoRenderer } = require(path.resolve(root, 'src/features/geo-coordinates/renderer.ts'));
-  const { buildGeoArtifact } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
-  const artifact = buildGeoArtifact(makeInput('37.7749, -122.4194'));
-  const renderer = createGeoRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '37.7749, -122.4194' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.extractor',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
+  const { createGeoPayload } = require(path.resolve(root, 'src/features/geo-coordinates/payload.ts'));
+  const payload = createGeoPayload({ content: { kind: 'text', text: '37.7749, -122.4194' } });
+  assert.ok(payload);
+  assert.deepEqual(decodeGeoPayload(payload), payload);
+  assert.deepEqual(decodeGeoPayload(JSON.stringify(payload)), payload);
 });

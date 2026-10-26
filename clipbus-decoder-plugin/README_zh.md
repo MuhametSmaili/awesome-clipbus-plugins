@@ -20,7 +20,7 @@ Clipbus 插件，检测并解码剪贴板中的编码字符串，并提供可级
 
 ### 编码与转义 Actions
 
-10 个独立 auto-run action，提供 URL、HTML、Base64、Unicode、JSON 的 encode/decode 双向转换。每一步读取宿主当前级联文本，并把结果继续交给后续 action。
+10 个独立 action，提供 URL、HTML、Base64、Unicode、JSON 的 encode/decode 双向转换。每一步读取宿主当前级联文本，并把结果继续交给后续 action。
 
 ## 本地开发
 

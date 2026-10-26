@@ -1,15 +1,15 @@
-import type {
-  PluginDetectorHandler,
-  PluginDetectorInput,
-  PluginDetectorArtifact,
-} from "@clipbus/plugin-sdk/runtime";
-import { buildMacArtifact } from "./payload.ts";
+import type { DetectorHandler } from "@clipbus/plugin-sdk/runtime";
+import { attachment, createMacPayload } from "./payload.ts";
 
-export function createMacDetector(): PluginDetectorHandler {
-  return {
-    async detect(input: PluginDetectorInput): Promise<PluginDetectorArtifact[]> {
-      const artifact = buildMacArtifact(input);
-      return artifact ? [artifact] : [];
-    },
+export function createMacDetector(): DetectorHandler {
+  return async (input, ctx) => {
+    const payload = createMacPayload(input);
+    if (payload === null) return;
+    await attachment.set(ctx, [{ key: "primary", payload }]);
+    const searchText = `${payload.colonLower} mac address ${payload.oui}`;
+    await ctx.item.setSearchExtension({
+      scope: "extractor",
+      entries: [{ key: "primary", text: searchText, label: "MAC Address" }],
+    });
   };
 }

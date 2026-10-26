@@ -1,43 +1,33 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeXmlPayload } from "./payload";
+import { useCard, useCardButton } from "../../shared/composables/useCard";
+import { attachment, decodeXmlPayload } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the preview workbench document.body is the whole page, so without a target autoFit
-// never converges and spams setHeight every frame.
+// never converges and spams height updates every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const card = useCard(attachment);
 const payload = computed(() =>
-  decodeXmlPayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeXmlPayload(card.attachment.value.payload)
 );
 
-let unsub: (() => void) | null = null;
 let stopAutoFit: (() => void) | null = null;
 
-onMounted(async () => {
-  stopAutoFit = autoFit({ min: 140, max: 480, target: rootEl.value ?? undefined });
-
-  try {
-    await clipbus.attachmentRenderer.setButtons({
-      buttons: [{ id: "copy-xml", title: "Copy Formatted XML" }],
-    });
-  } catch {
-    /* not in attachment renderer context */
+useCardButton("copy-xml", async () => {
+  if (payload.value) {
+    await ctx.system.copyText({ text: payload.value.formatted });
   }
+});
 
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy-xml" && payload.value) {
-      await clipbus.clipboard.copyText({ text: payload.value.formatted });
-    }
-  });
+onMounted(() => {
+  stopAutoFit = autoFit({ min: 140, max: 480, target: rootEl.value ?? undefined });
 });
 
 onUnmounted(() => {
-  unsub?.();
   stopAutoFit?.();
 });
 </script>

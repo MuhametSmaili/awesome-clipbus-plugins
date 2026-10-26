@@ -2,9 +2,8 @@ import { createPreviewWorkbench } from "@clipbus/plugin-sdk/preview";
 import { createApp, type Component } from "vue";
 import "../../shared/base.css";
 import { attachmentScenarios } from "../scenarios/attachmentScenarios";
-import { actionScenarios } from "../scenarios/actionScenarios";
 
-// PER-PLUGIN: import every renderer + draft-action feature component.
+// PER-PLUGIN: import every renderer feature component.
 import JsonRenderer from "../../features/json-renderer/app.vue";
 import XmlRenderer from "../../features/xml-renderer/app.vue";
 import CsvTable from "../../features/csv-table/app.vue";
@@ -17,7 +16,7 @@ const COMPONENTS: Record<string, Component> = {
 };
 
 createPreviewWorkbench(document.getElementById("app")!, {
-  scenarios: [...attachmentScenarios, ...actionScenarios],
+  scenarios: attachmentScenarios,
   mount(slotEl, { scenario }) {
     const Comp = COMPONENTS[scenario.view ?? ""] ?? JsonRenderer;
     const app = createApp(Comp);

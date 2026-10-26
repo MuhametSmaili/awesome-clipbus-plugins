@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export interface JsonFormatterPayload {
   kind: "json_formatter_preview";
@@ -247,10 +247,10 @@ export function createJsonPayload(input: unknown): JsonFormatterPayload | null {
 }
 
 export function decodeJsonPayload(
-  payloadJson: string | null | undefined,
+  value: unknown,
 ): JsonFormatterPayload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as Record<string, unknown>;
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as Record<string, unknown>;
     if (p.kind !== "json_formatter_preview") return null;
     // Backward-compatible defaults for fields added in later versions
     if (typeof p.yaml !== "string") p.yaml = "";
@@ -261,17 +261,4 @@ export function decodeJsonPayload(
   }
 }
 
-export function buildJsonArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createJsonPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "formatter",
-      searchText: payload.formatted.slice(0, 200),
-      label: payload.display.typeLabel,
-    },
-  };
-}
+export const attachment = defineAttachment<JsonFormatterPayload>(ATTACHMENT_TYPE);

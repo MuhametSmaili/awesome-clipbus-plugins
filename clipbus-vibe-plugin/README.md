@@ -4,11 +4,11 @@
 
 ## How it works
 
-### Fallback mechanism (broad-attach + yield)
+### Fallback mechanism
 
-Vibe's detector attaches to every non-empty text item. Its renderer then checks whether any *other* plugin has also produced an attachment for the same item. If so, Vibe yields (`shouldDisplay: false`) — deferring to the more specialised renderer. Only when no other plugin claims the item does Vibe display its animation card.
+Vibe's detector checks the V2 attachment references in `input.item.attachments`. If another plugin has already attached a result (`own: false`), Vibe yields without writing. Otherwise, it attaches an animation payload to non-empty text. Its own references (`own: true`) allow a full write on recopy, so repeating a copy keeps the animation available.
 
-This makes Vibe a true last-resort fallback: it shows up exactly when nothing else does.
+The check uses the detector's item snapshot. Attachments added by another detector afterward are considered on the next detection; there is no runtime renderer visibility hook in protocol V2.
 
 ### Three switchable animations
 
@@ -61,7 +61,7 @@ Palette: cyan `#7EE7FF`, purple `#A78BFA`, white `#FFFFFF`.
 
 ### Switching animations
 
-Switching is driven by the SDK's native renderer button API (`clipbus.attachmentRenderer.setButtons` + `onHostInvoke`) — there is no in-page button. On load, Vibe resolves the animation list from settings and calls `setButtons` with one **enabled** button per listed animation; the first is shown. Clicking any button switches to it; clicking the current one replays it.
+Switching uses `ctx.renderer.update({ buttons })` and `ctx.renderer.onButton(event => ...)`, where `event.id` selects the animation. On load, Vibe resolves the list from settings and publishes one **enabled** native button per animation; the first is shown. Clicking an animation switches to it; clicking the current one replays it. Subscriptions and animation resources are released when the card unmounts.
 
 ### Settings
 
@@ -74,7 +74,7 @@ Vibe reads one read-only setting, **`plugin.vibe.animations`** — the list of a
 
 Valid ids: `particle-core`, `text-reveal`, `text-loop`. Unknown ids are ignored, duplicates collapsed. A comma/space-separated string (e.g. `"text-loop, particle-core"`) is also accepted.
 
-Plugins can only *read* settings (`clipbus.settings.get`) — no `settings.set`, no manifest schema. Settings are a flat shared JSON store owned by the Clipbus host, so the key is plugin-id-namespaced. To set it, edit the host file and reload the plugin:
+Plugins read settings with `ctx.settings.get<{ animations?: unknown }>()`. It returns `{ values }`, with the plugin prefix removed: the host key `plugin.vibe.animations` becomes `values.animations`. Settings are read-only. To configure the host's shared JSON store, edit the file and reload the plugin:
 
 ```
 ~/Library/Application Support/Clipbus/ExternalSettings/settings.json   (…/ClipbusDebug/… for debug build)
@@ -92,6 +92,6 @@ The registry (`src/features/vibe-fallback/animations/index.ts`) accepts any obje
 
 ## Notes
 
-- **Cross-plugin yielding** requires a real Clipbus environment to test — the dev preview only runs this plugin and always shows the Vibe card.
+- The four preview scenarios preserve the plain-text and short-word samples and demonstrate ordered and single-animation settings. Runtime tests cover foreign attachment references and own-only recopy; host detection ordering still requires a real Clipbus environment.
 - The card background is intentionally dark (deep-space radial gradient). This is a deliberate design choice for the animation, not a theming error.
-- Attachment sync scope is `local_only` — Vibe attachments are not synced across devices.
+- The host stores attachments locally; Vibe declares its attachment type in `writes.attachmentTypes`.

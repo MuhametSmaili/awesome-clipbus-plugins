@@ -2,7 +2,7 @@
 /**
  * switching.test.cjs — 动画切换逻辑单元测试
  * 覆盖：resolveAnimationList、buildButtons、indexForButton
- * 运行：node --experimental-strip-types --require ./tests/setup.cjs --test ./tests/runtime/switching.test.cjs
+ * 运行：node --test ./tests/runtime/switching.test.cjs
  */
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
@@ -95,7 +95,7 @@ describe('buildButtons', () => {
   it('every button is enabled', () => {
     const btns = buildButtons(ALL);
     for (const btn of btns) {
-      assert.equal(btn.isEnabled, true, `button ${btn.id} should be enabled`);
+      assert.equal(btn.enabled, true, `button ${btn.id} should be enabled`);
     }
   });
 

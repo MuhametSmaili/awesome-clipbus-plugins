@@ -1,11 +1,14 @@
-import type { PluginDetectorHandler, PluginDetectorInput, PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
-import { buildFilesizeArtifact } from "./payload.ts";
+import type { DetectorHandler } from "@clipbus/plugin-sdk/runtime";
+import { attachment, createFilesizePayload } from "./payload.ts";
 
-export function createFilesizeDetector(): PluginDetectorHandler {
-  return {
-    async detect(input: PluginDetectorInput): Promise<PluginDetectorArtifact[]> {
-      const artifact = buildFilesizeArtifact(input);
-      return artifact ? [artifact] : [];
-    },
+export function createFilesizeDetector(): DetectorHandler {
+  return async (input, ctx) => {
+    const payload = createFilesizePayload(input);
+    if (payload === null) return;
+    await attachment.set(ctx, [{ key: "primary", payload }]);
+    await ctx.item.setSearchExtension({
+      scope: "converter",
+      entries: [{ key: "primary", text: `${payload.bytesFormatted} bytes`, label: "Data Size" }],
+    });
   };
 }

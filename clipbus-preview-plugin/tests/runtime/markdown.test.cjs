@@ -8,7 +8,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "../..");
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, "manifest.json"), "utf8"));
 
-const sampleItem = { id: "item-1", type: "text", tags: [], sourceAppID: "com.example.app" };
+const sampleItem = { id: "item-1", kind: "text", tags: [], sourceApp: "com.example.app" };
 
 function textInput(text) {
   return { item: sampleItem, content: { kind: "text", text }, attachments: [] };
@@ -18,44 +18,43 @@ function textInput(text) {
 
 test("manifest declares markdown-detector and markdown-renderer", () => {
   assert.ok(manifest.detectors.map((d) => d.id).includes("markdown-detector"));
-  assert.ok(manifest.attachmentRenderers.map((r) => r.id).includes("markdown-renderer"));
+  assert.ok(manifest.renderers.map((r) => r.id).includes("markdown-renderer"));
 });
 
-test("markdown-renderer uiEntry references renderers/ path", () => {
-  const r = manifest.attachmentRenderers.find((x) => x.id === "markdown-renderer");
-  assert.ok(r.uiEntry.startsWith("renderers/"), `unexpected uiEntry: ${r.uiEntry}`);
+test("markdown-renderer page references renderers/ path", () => {
+  const r = manifest.renderers.find((x) => x.id === "markdown-renderer");
+  assert.ok(r.page.startsWith("dist/ui/renderers/"), `unexpected page: ${r.page}`);
 });
 
 // ── Detector ──────────────────────────────────────────────────────────────────
 
 test("detector fires on text with heading + bold + list (3 signals)", () => {
-  const { buildMarkdownArtifact } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
+  const { detectMarkdownPayload } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
   const src = "# Heading\n\n**bold text**\n\n- list item one\n- list item two";
-  const artifact = buildMarkdownArtifact(textInput(src));
-  assert.ok(artifact, "should detect markdown with multiple signals");
-  assert.equal(artifact.attachmentType, "plugin.preview.markdown");
+  const payload = detectMarkdownPayload(textInput(src));
+  assert.ok(payload, "should detect markdown with multiple signals");
 });
 
 test("detector ignores plain prose (0 signals)", () => {
-  const { buildMarkdownArtifact } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
-  assert.equal(buildMarkdownArtifact(textInput("just a normal sentence without any markdown.")), null);
+  const { detectMarkdownPayload } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
+  assert.equal(detectMarkdownPayload(textInput("just a normal sentence without any markdown.")), null);
 });
 
 test("detector ignores image content kind", () => {
-  const { buildMarkdownArtifact } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
-  const artifact = buildMarkdownArtifact({
+  const { detectMarkdownPayload } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
+  const payload = detectMarkdownPayload({
     item: sampleItem,
     content: { kind: "image", width: 10, height: 10, format: "png", bytes: 0 },
     attachments: [],
   });
-  assert.equal(artifact, null);
+  assert.equal(payload, null);
 });
 
 test("detector requires at least 2 signal kinds (1 signal alone is rejected)", () => {
-  const { buildMarkdownArtifact } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
+  const { detectMarkdownPayload } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
   // Only one signal: a single heading with no other markdown
   const onlyHeading = "# Just a heading\nand some prose text here";
-  assert.equal(buildMarkdownArtifact(textInput(onlyHeading)), null);
+  assert.equal(detectMarkdownPayload(textInput(onlyHeading)), null);
 });
 
 // ── renderMarkdown ────────────────────────────────────────────────────────────
@@ -135,42 +134,13 @@ test("decodeMarkdownPayload returns null for bad JSON and wrong kind", () => {
   assert.equal(decodeMarkdownPayload(undefined), null);
 });
 
-// ── Renderer ──────────────────────────────────────────────────────────────────
 
-test("renderer returns shouldDisplay:false for invalid payload", async () => {
-  const { createMarkdownRenderer } = require(path.resolve(root, "src/features/markdown-renderer/renderer.ts"));
-  const result = await createMarkdownRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "" },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.preview",
-      attachmentType: "plugin.preview.markdown",
-      attachmentKey: "primary",
-      payloadJson: "not-valid-json",
-    },
-  });
-  assert.equal(result.shouldDisplay, false);
-});
-
-test("renderer returns a displayName for a valid payload", async () => {
-  const { createMarkdownRenderer } = require(path.resolve(root, "src/features/markdown-renderer/renderer.ts"));
-  const { buildMarkdownArtifact } = require(path.resolve(root, "src/features/markdown-renderer/payload.ts"));
-  const src = "# Hello\n\n**world** with `code`";
-  const artifact = buildMarkdownArtifact(textInput(src));
-  const result = await createMarkdownRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: src },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.preview",
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, "should have a displayName");
-  assert.notEqual(result.shouldDisplay, false);
+test('decodeMarkdownPayload accepts the structured V2 payload and serialized samples', () => {
+  const { createMarkdownPayload, decodeMarkdownPayload } = require(path.resolve(root, 'src/features/markdown-renderer/payload.ts'));
+  const payload = createMarkdownPayload("# Hello\n\n**world** with `code`");
+  assert.ok(payload);
+  assert.equal(payload.kind, 'markdown_preview');
+  assert.deepEqual(decodeMarkdownPayload(payload), payload);
+  assert.deepEqual(decodeMarkdownPayload(JSON.stringify(payload)), payload);
+  assert.equal(decodeMarkdownPayload({ ...payload, version: 2 }), null);
 });

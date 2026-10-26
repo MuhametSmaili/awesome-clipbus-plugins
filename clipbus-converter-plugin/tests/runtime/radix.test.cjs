@@ -18,12 +18,12 @@ function textInput(text) {
 
 test("manifest declares radix-detector / radix-renderer", () => {
   assert.ok(manifest.detectors.map((d) => d.id).includes("radix-detector"));
-  assert.ok(manifest.attachmentRenderers.map((r) => r.id).includes("radix-renderer"));
+  assert.ok(manifest.renderers.map((r) => r.id).includes("radix-renderer"));
 });
 
-test("radix-renderer uiEntry references renderers/ path", () => {
-  const r = manifest.attachmentRenderers.find((x) => x.id === "radix-renderer");
-  assert.ok(r.uiEntry.startsWith("renderers/"), `unexpected uiEntry: ${r.uiEntry}`);
+test("radix-renderer page references renderers/ path", () => {
+  const r = manifest.renderers.find((x) => x.id === "radix-renderer");
+  assert.ok(r.page.startsWith("dist/ui/renderers/"), `unexpected page: ${r.page}`);
 });
 
 // ── Payload / Detector ─────────────────────────────────────────────────────────
@@ -71,18 +71,18 @@ test("65 → asciiChar 'A'", () => {
 });
 
 test("detector ignores 12.5 (float)", () => {
-  const { buildRadixArtifact } = require(path.resolve(root, "src/features/radix-renderer/payload.ts"));
-  assert.equal(buildRadixArtifact(textInput("12.5")), null);
+  const { createRadixPayload } = require(path.resolve(root, "src/features/radix-renderer/payload.ts"));
+  assert.equal(createRadixPayload(textInput("12.5")), null);
 });
 
 test("detector ignores 'abc' (non-numeric)", () => {
-  const { buildRadixArtifact } = require(path.resolve(root, "src/features/radix-renderer/payload.ts"));
-  assert.equal(buildRadixArtifact(textInput("abc")), null);
+  const { createRadixPayload } = require(path.resolve(root, "src/features/radix-renderer/payload.ts"));
+  assert.equal(createRadixPayload(textInput("abc")), null);
 });
 
 test("detector ignores '12 34' (whitespace in middle)", () => {
-  const { buildRadixArtifact } = require(path.resolve(root, "src/features/radix-renderer/payload.ts"));
-  assert.equal(buildRadixArtifact(textInput("12 34")), null);
+  const { createRadixPayload } = require(path.resolve(root, "src/features/radix-renderer/payload.ts"));
+  assert.equal(createRadixPayload(textInput("12 34")), null);
 });
 
 test("large integer (BigInt) does not crash", () => {
@@ -101,41 +101,3 @@ test("decodeRadixPayload returns null for invalid/wrong-kind input", () => {
 });
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
-
-test("renderer returns shouldDisplay:false for bad payload", async () => {
-  const { createRadixRenderer } = require(path.resolve(root, "src/features/radix-renderer/renderer.ts"));
-  const result = await createRadixRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "" },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.converter",
-      attachmentType: "plugin.converter.radix",
-      attachmentKey: "primary",
-      payloadJson: "not-valid-json",
-    },
-  });
-  assert.equal(result.shouldDisplay, false);
-});
-
-test("renderer returns displayName for valid payload", async () => {
-  const { createRadixRenderer } = require(path.resolve(root, "src/features/radix-renderer/renderer.ts"));
-  const { buildRadixArtifact } = require(path.resolve(root, "src/features/radix-renderer/payload.ts"));
-  const artifact = buildRadixArtifact(textInput("255"));
-  const result = await createRadixRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "255" },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.converter",
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName);
-  assert.notEqual(result.shouldDisplay, false);
-});
-

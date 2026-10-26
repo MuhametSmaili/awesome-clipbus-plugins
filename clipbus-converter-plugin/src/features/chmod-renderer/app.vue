@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeChmodPayload } from "./payload";
+import { useCard } from "../../shared/composables/useCard";
+import { attachment, decodeChmodPayload } from "./payload";
 
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const card = useCard(attachment);
 const payload = computed(() =>
-  decodeChmodPayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeChmodPayload(card.attachment.value.payload)
 );
 
 let stopAutoFit: (() => void) | null = null;

@@ -2,14 +2,14 @@
 
 *English · [中文](./GUIDE_zh.md)*
 
-This project (`plugins/template-plugin/`) is the **scaffold and runnable example** for Clipbus third-party plugins. This file covers only the **scaffold workflow** (getting started, local development, debugging inside Clipbus, building, testing) and the **project structure**.
+This project (`clipbus-decoder-plugin/`) implements Decoder with SDK 2.0.0, plugin protocol V2, and manifest schema 5. This file covers only the **scaffold workflow** (getting started, local development, debugging inside Clipbus, building, testing) and the **project structure**.
 
-**The authoritative knowledge for plugin development** (architecture, manifest, SDK entry points, detector/renderer/action, input shapes, RPC, permissions, pitfalls) **ships with the SDK package**. After `npm install` it lives in `node_modules/@clipbus/plugin-sdk/docs/` — and always matches the SDK version you currently have installed.
+**The authoritative knowledge for plugin development** (architecture, manifest, SDK entry points, detector/renderer/action, input shapes, RPC, write declarations, pitfalls) **ships with the SDK package**. After `npm install` it lives in `node_modules/@clipbus/plugin-sdk/docs/` — and always matches the SDK version you currently have installed.
 
 - **AI / tools**: read this project's root [`AGENTS.md`](./AGENTS.md) first; it points to the stable entry point of the SDK docs.
 - **Documentation map**: `node_modules/@clipbus/plugin-sdk/docs/README.md`
 - **Capability source of truth**: `node_modules/@clipbus/plugin-sdk/API.md` (generated; in case of conflict, it wins)
-- Refresh the docs and capabilities via `npm update @clipbus/plugin-sdk` — **no need to replace any file in this project**.
+- Refresh the docs and capabilities via `npm update @clipbus/plugin-sdk`; review the SDK migration guide when upgrading.
 
 > The code and notes inside this project are **examples** and may lag behind the installed SDK; when they conflict with the SDK docs, **the SDK docs win**.
 
@@ -37,19 +37,9 @@ The dependency `@clipbus/plugin-sdk` is an independently published npm package (
 npm run dev
 ```
 
-Starts the Vite Preview Workbench. The workbench simulates the host pushing a bootstrap and offers two views:
+Starts the Vite Preview Workbench with five real card scenarios across Base64, JWT, and Data URI. Select a scenario and theme in the workbench. The browser hot-reloads after you edit `src/features/*/app.vue`.
 
-- `?view=renderer` — preview the attachment renderer card
-- `?view=action` — preview the draft action form
-
-The browser hot-reloads after you edit `src/features/*/app.vue`.
-
-You can also open a single view directly:
-
-```sh
-npm run dev:renderer
-npm run dev:action
-```
+All ten transformation actions run directly in the Runtime and return text or no result; they have no form or preview page.
 
 ### Debugging inside Clipbus
 
@@ -61,7 +51,7 @@ Clipbus → Settings → Plugins → the Developer Plugins section provides life
 
 | Button | Behavior |
 |---|---|
-| **Reload** | Re-reads `manifest.json`, refreshing fingerprint / permissions / loadState. Does **not** re-run install. |
+| **Reload** | Re-reads `manifest.json`, refreshing fingerprint / write declarations / loadState. Does **not** re-run install. |
 | **Run Install** | Re-runs the install hook in place and updates `lastInstallExecution`. Does **not** re-read the manifest. |
 | **View Logs** | Shown in the `installFailed` state; opens the most recent install log (supports live tail). |
 
@@ -73,7 +63,7 @@ States: `installing` → installing; `installFailed` → non-zero exit code or r
 npm run build
 ```
 
-In order: clean → build:runtime → build:ui → verify:build, output to `dist/`.
+In order: typecheck → lint → clean → build:runtime → build:ui → verify:build, output to `dist/`.
 
 ### Verifying your plugin
 
@@ -81,7 +71,7 @@ In order: clean → build:runtime → build:ui → verify:build, output to `dist
 npm run verify
 ```
 
-Runs in order: **manifest validation → build → tests**.
+Runs in order: **manifest validation → build → runtime manifest validation → tests**.
 
 The manifest validation step (`npm run verify:manifest`) checks your `manifest.json`
 for structural issues — namespace violations, unsupported schema versions, legacy fields,
@@ -100,7 +90,7 @@ npx clipbus-validate-manifest . --runtime  # also checks built file existence
 ### Testing
 
 ```sh
-npm test         # integration tests under tests/runtime/
+npm test         # parser, built Runtime, and preview tests under tests/
 ```
 
 ---
@@ -116,11 +106,10 @@ your-plugin/
 ├── scripts/                            ← build:runtime / build:ui / verify:build
 ├── src/
 │   ├── features/<feature-name>/        ← one folder per capability
-│   │   ├── payload.ts                  ← data types / draft types
+│   │   ├── payload.ts                  ← payload types, parser, and shared attachment contract
 │   │   ├── detector.ts                 ← detector (if any)
-│   │   ├── renderer.ts                 ← renderer runtime side (if any)
 │   │   ├── action.ts                   ← action runtime side (if any)
-│   │   ├── app.vue                     ← UI entry (renderer or draft action)
+│   │   ├── app.vue                     ← card UI entry
 │   │   ├── main.ts / index.html        ← Vite entry
 │   ├── shared/                         ← thin utility layer across features
 │   ├── preview/                        ← local preview workbench (dev-only)
@@ -128,7 +117,7 @@ your-plugin/
 └── tests/runtime/
 ```
 
-For template-plugin's concrete feature list (`preview-renderer/` / `expanded-renderer/` / `auto-action/` / `capability-gallery/`), see the "Capabilities demonstrated" section in [README.md](./README.md).
+For Decoder capabilities see [README.md](./README.md). Detectors write through `defineAttachment().set` and `ctx.item.setSearchExtension`; declare their types and scopes in manifest `writes`. Card pages use `ctx` from `@clipbus/plugin-sdk/view` and the shared `useCard` binding for startup data and events. Card appearance defaults come from manifest `renderers`.
 
 > The SDK is a standalone package `@clipbus/plugin-sdk`, synced by codegen — **do not edit it by hand**. To extend capabilities see the package's `SPECIFICATION.md` ([`@clipbus/plugin-sdk`](https://www.npmjs.com/package/@clipbus/plugin-sdk)), Ch 3.
 

@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeCsvPayload, buildMarkdownTable, buildCsvJson } from "./payload";
+import { useCard, useCardButton } from "../../shared/composables/useCard";
+import { attachment, decodeCsvPayload, buildMarkdownTable, buildCsvJson } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the preview workbench document.body is the whole page, so without a target autoFit
-// never converges and spams setHeight every frame.
+// never converges and spams height updates every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
 const MAX_DISPLAY_ROWS = 50;
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const card = useCard(attachment);
 const payload = computed(() =>
-  decodeCsvPayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeCsvPayload(card.attachment.value.payload)
 );
 
 const displayRows = computed(() =>
@@ -28,41 +28,39 @@ const hiddenRowCount = computed(() =>
 type ViewMode = "table" | "json";
 const activeView = ref<ViewMode>("table");
 
-let unsub: (() => void) | null = null;
 let stopAutoFit: (() => void) | null = null;
 
 async function syncCopyButton(): Promise<void> {
   try {
     const title =
       activeView.value === "json" ? "Copy JSON" : "Copy as Markdown Table";
-    await clipbus.attachmentRenderer.setButtons({
+    await ctx.renderer.update({
       buttons: [{ id: "copy", title }],
     });
-  } catch {
-    /* not in attachment renderer context */
+  } catch (error) {
+    ctx.log.warn("Could not update copy button", error);
   }
 }
 
-onMounted(async () => {
+useCardButton("copy", async () => {
+  if (payload.value) {
+    const text =
+      activeView.value === "json"
+        ? buildCsvJson(payload.value)
+        : buildMarkdownTable(payload.value);
+    await ctx.system.copyText({ text });
+  }
+});
+
+onMounted(() => {
   stopAutoFit = autoFit({ min: 160, max: 460, target: rootEl.value ?? undefined });
 
-  await syncCopyButton();
-
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy" && payload.value) {
-      const text =
-        activeView.value === "json"
-          ? buildCsvJson(payload.value)
-          : buildMarkdownTable(payload.value);
-      await clipbus.clipboard.copyText({ text });
-    }
-  });
+  void syncCopyButton();
 });
 
 watch(activeView, syncCopyButton);
 
 onUnmounted(() => {
-  unsub?.();
   stopAutoFit?.();
 });
 </script>

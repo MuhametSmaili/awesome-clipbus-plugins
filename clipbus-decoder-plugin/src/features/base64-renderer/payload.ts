@@ -1,4 +1,4 @@
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
 export type Base64Encoding = "standard" | "url-safe";
 
@@ -104,9 +104,9 @@ export function createBase64Payload(input: unknown): Base64Payload | null {
   };
 }
 
-export function decodeBase64Payload(payloadJson: string | null | undefined): Base64Payload | null {
+export function decodeBase64Payload(value: unknown): Base64Payload | null {
   try {
-    const p = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const p = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (p.kind !== "base64_preview") return null;
     return p as Base64Payload;
   } catch {
@@ -114,17 +114,4 @@ export function decodeBase64Payload(payloadJson: string | null | undefined): Bas
   }
 }
 
-export function buildBase64Artifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createBase64Payload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey: "primary",
-    payloadJson: JSON.stringify(payload),
-    searchProjection: {
-      scope: "decoder",
-      searchText: payload.decoded.slice(0, 200),
-      label: "Base64 Decoded",
-    },
-  };
-}
+export const attachment = defineAttachment<Base64Payload>(ATTACHMENT_TYPE);

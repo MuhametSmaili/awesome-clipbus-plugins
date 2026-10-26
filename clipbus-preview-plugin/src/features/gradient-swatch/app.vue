@@ -1,34 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeGradientPayload } from "./payload";
+import { computed } from "vue";
+import { ctx } from "@clipbus/plugin-sdk/view";
+import { useCard, useCardButton } from "../../shared/composables/useCard";
+import { attachment, decodeGradientPayload } from "./payload";
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
-const payload = computed(() =>
-  decodeGradientPayload(attachmentPayload.value?.attachment?.payloadJson)
-);
+const card = useCard(attachment);
+const payload = computed(() => decodeGradientPayload(card.attachment.value.payload));
 
-let unsub: (() => void) | null = null;
-
-onMounted(async () => {
-  try {
-    await clipbus.attachmentRenderer.setButtons({
-      buttons: [{ id: "copy-gradient", title: "Copy Gradient" }],
-    });
-  } catch {
-    /* not in attachment renderer context */
-  }
-
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy-gradient" && payload.value) {
-      await clipbus.clipboard.copyText({ text: payload.value.gradient });
-    }
-  });
-});
-
-onUnmounted(() => {
-  unsub?.();
+useCardButton("copy-gradient", async () => {
+  if (!payload.value) return;
+  await ctx.system.copyText({ text: payload.value.gradient });
 });
 </script>
 

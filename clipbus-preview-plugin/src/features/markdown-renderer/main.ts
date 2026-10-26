@@ -1,7 +1,10 @@
-import { patchConsole, patchTextInputState } from "@clipbus/plugin-sdk/dom";
-patchConsole();
-patchTextInputState();
+import { forwardConsole, reportInputState, autoFit } from "@clipbus/plugin-sdk/dom";
+forwardConsole();
+reportInputState();
 import { createApp } from "vue";
 import App from "./app.vue";
 import "../../shared/base.css";
-createApp(App).mount("#app");
+const app = createApp(App);
+app.mount("#app");
+const stopAutoFit = autoFit({ min: 120, max: 480, target: document.querySelector<HTMLElement>(".shell") ?? undefined });
+if (import.meta.hot) import.meta.hot.dispose(() => { stopAutoFit(); app.unmount(); });

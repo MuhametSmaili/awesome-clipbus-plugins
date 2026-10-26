@@ -2,22 +2,24 @@
 // Consumed by createPreviewWorkbench (preview-host/main.ts); `view` selects the
 // feature component to mount. Add one entry per attachment renderer feature.
 
+import manifest from "../../../manifest.json";
+import { createUrlCard, decodeUrlPayload } from "../../features/url-parsed/payload.ts";
 import type { PreviewScenario } from "@clipbus/plugin-sdk/preview";
 
-const PLUGIN_ID = "plugin.extractor";
+const PLUGIN_ID = manifest.plugin.id;
 const ITEM_TAGS = ["extractor"];
 const SOURCE_APP = "com.preview.editor";
 
-const entitiesPayload = JSON.stringify({
+const entitiesPayload = {
   kind: "entities_preview",
   version: 1,
   urls: ["https://example.com", "https://foo.org"],
   emails: ["john@example.com"],
   ips: ["192.168.1.1"],
   totalCount: 4,
-});
+};
 
-const urlParsedPayload = JSON.stringify({
+const urlParsedPayload = {
   kind: "url_parsed",
   version: 1,
   inputType: "url",
@@ -58,9 +60,9 @@ const urlParsedPayload = JSON.stringify({
       { label: "Path", value: "/article" },
     ],
   },
-});
+};
 
-const queryStringPayload = JSON.stringify({
+const queryStringPayload = {
   kind: "url_parsed",
   version: 1,
   inputType: "query",
@@ -89,9 +91,9 @@ const queryStringPayload = JSON.stringify({
       { label: "Duplicate keys", value: "Yes" },
     ],
   },
-});
+};
 
-const ipDetailsPayloadV4 = JSON.stringify({
+const ipDetailsPayloadV4 = {
   kind: "ip_details",
   version: 1,
   input: "192.168.1.10",
@@ -103,9 +105,9 @@ const ipDetailsPayloadV4 = JSON.stringify({
   reverseDns: "10.1.168.192.in-addr.arpa",
   scope: "Private",
   legacyClass: "C",
-});
+};
 
-const ipDetailsPayloadV4Cidr = JSON.stringify({
+const ipDetailsPayloadV4Cidr = {
   kind: "ip_details",
   version: 1,
   input: "192.168.1.0/24",
@@ -122,9 +124,9 @@ const ipDetailsPayloadV4Cidr = JSON.stringify({
   usableHostCount: 254,
   scope: "Private",
   legacyClass: "C",
-});
+};
 
-const ipDetailsPayloadV6 = JSON.stringify({
+const ipDetailsPayloadV6 = {
   kind: "ip_details",
   version: 1,
   input: "2001:db8::1",
@@ -133,9 +135,9 @@ const ipDetailsPayloadV6 = JSON.stringify({
   expanded: "2001:0db8:0000:0000:0000:0000:0000:0001",
   compressed: "2001:db8::1",
   scope: "Global Unicast",
-});
+};
 
-const macAddressPayload = JSON.stringify({
+const macAddressPayload = {
   kind: "mac_address",
   version: 1,
   input: "00:1A:2B:3C:4D:5E",
@@ -150,9 +152,9 @@ const macAddressPayload = JSON.stringify({
   cast: "Unicast (individual)",
   administration: "Universal (OUI/vendor-assigned)",
   special: null,
-});
+};
 
-const uuidDetailsPayload = JSON.stringify({
+const uuidDetailsPayload = {
   kind: "uuid_details",
   version: 1,
   input: "550e8400-e29b-41d4-a716-446655440000",
@@ -164,9 +166,9 @@ const uuidDetailsPayload = JSON.stringify({
   variant: "RFC 4122/9562",
   timestamp: null,
   node: null,
-});
+};
 
-const geoCoordinatesPayload = JSON.stringify({
+const geoCoordinatesPayload = {
   kind: "geo_coordinates",
   version: 1,
   input: "37.7749, -122.4194",
@@ -178,44 +180,30 @@ const geoCoordinatesPayload = JSON.stringify({
   hemisphere: "N / W",
   osmUrl: "https://www.openstreetmap.org/?mlat=37.7749&mlon=-122.4194#map=12/37.7749/-122.4194",
   googleUrl: "https://maps.google.com/?q=37.7749,-122.4194",
-});
+};
 
-/** Build an attachmentRenderer scenario; `view` routes to the feature component. */
+/** Build a V2 card scenario from this plugin's payload and manifest defaults. */
 function renderer(opts: {
   id: string;
   label: string;
   view: string;
-  accentHex: string;
-  attachmentType: string;
-  payloadJson: string;
-  min: number;
-  max: number;
+  payload: object;
 }): PreviewScenario {
-  const item = {
-    id: `item-${opts.id}`,
-    type: "text",
-    tags: ITEM_TAGS,
-    sourceAppID: SOURCE_APP,
-  };
+  const declared = manifest.renderers.find((entry) => entry.id === opts.view)!;
+  const reference = { type: declared.attachmentType, key: "primary", updatedAt: 1, own: true };
+  const url = opts.view === "url-parsed" ? decodeUrlPayload(opts.payload) : null;
   return {
     id: opts.id,
     label: opts.label,
-    mode: "attachmentRenderer",
-    pluginID: PLUGIN_ID,
-    accentHex: opts.accentHex,
     view: opts.view,
-    viewport: { heightPolicy: "bounded", min: opts.min, max: opts.max },
-    item,
-    attachment: {
-      item,
-      attachment: {
-        historyID: `preview-${opts.id}`,
-        owner: PLUGIN_ID,
-        attachmentType: opts.attachmentType,
-        attachmentKey: "primary",
-        payloadJson: opts.payloadJson,
-      },
+    plugin: { id: PLUGIN_ID, version: manifest.plugin.version },
+    item: {
+      id: `item-${opts.id}`, kind: "text", tags: ITEM_TAGS, sourceApp: SOURCE_APP,
+      pinned: false, createdAt: 1, lastCopiedAt: 1, attachments: [reference],
     },
+    attachment: { ...reference, payload: opts.payload, ...(url ? { card: createUrlCard(url) } : {}) },
+    renderer: { title: declared.title, tint: declared.tint, buttons: declared.buttons },
+    height: declared.height,
   };
 }
 
@@ -224,90 +212,54 @@ export const attachmentScenarios: PreviewScenario[] = [
     id: "entities-renderer-mixed",
     label: "Extracted Entities: URL + Email + IP",
     view: "entities-renderer",
-    accentHex: "#2563EB",
-    attachmentType: "plugin.extractor.entities",
-    min: 140,
-    max: 420,
-    payloadJson: entitiesPayload,
+    payload: entitiesPayload,
   }),
   renderer({
     id: "url-parsed-basic",
     label: "URL: tracking params removed",
     view: "url-parsed",
-    accentHex: "#2563EB",
-    attachmentType: "plugin.extractor.url",
-    min: 140,
-    max: 500,
-    payloadJson: urlParsedPayload,
+    payload: urlParsedPayload,
   }),
   renderer({
     id: "url-parsed-query-string",
     label: "Query String: duplicate keys",
     view: "url-parsed",
-    accentHex: "#2563EB",
-    attachmentType: "plugin.extractor.url",
-    min: 140,
-    max: 500,
-    payloadJson: queryStringPayload,
+    payload: queryStringPayload,
   }),
   renderer({
     id: "ip-details-v4",
     label: "IP Address: IPv4 private host",
     view: "ip-details",
-    accentHex: "#0891B2",
-    attachmentType: "plugin.extractor.ip",
-    min: 140,
-    max: 380,
-    payloadJson: ipDetailsPayloadV4,
+    payload: ipDetailsPayloadV4,
   }),
   renderer({
     id: "ip-details-v4cidr",
     label: "IP Address: IPv4 CIDR /24",
     view: "ip-details",
-    accentHex: "#0891B2",
-    attachmentType: "plugin.extractor.ip",
-    min: 140,
-    max: 380,
-    payloadJson: ipDetailsPayloadV4Cidr,
+    payload: ipDetailsPayloadV4Cidr,
   }),
   renderer({
     id: "ip-details-v6",
     label: "IP Address: IPv6 global unicast",
     view: "ip-details",
-    accentHex: "#0891B2",
-    attachmentType: "plugin.extractor.ip",
-    min: 140,
-    max: 380,
-    payloadJson: ipDetailsPayloadV6,
+    payload: ipDetailsPayloadV6,
   }),
   renderer({
     id: "mac-address-unicast",
     label: "MAC Address: unicast universal",
     view: "mac-address",
-    accentHex: "#7C3AED",
-    attachmentType: "plugin.extractor.mac",
-    min: 120,
-    max: 320,
-    payloadJson: macAddressPayload,
+    payload: macAddressPayload,
   }),
   renderer({
     id: "geo-coordinates-sf",
     label: "Coordinates: San Francisco decimal",
     view: "geo-coordinates",
-    accentHex: "#16A34A",
-    attachmentType: "plugin.extractor.geo",
-    min: 120,
-    max: 340,
-    payloadJson: geoCoordinatesPayload,
+    payload: geoCoordinatesPayload,
   }),
   renderer({
     id: "uuid-details-v4",
     label: "UUID: random v4",
     view: "uuid-details",
-    accentHex: "#7C3AED",
-    attachmentType: "plugin.extractor.uuid",
-    min: 120,
-    max: 360,
-    payloadJson: uuidDetailsPayload,
+    payload: uuidDetailsPayload,
   }),
 ];

@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { clipbus } from "@clipbus/plugin-sdk/ui";
+import { ctx } from "@clipbus/plugin-sdk/view";
 import { autoFit } from "@clipbus/plugin-sdk/dom";
-import { useTopicRef } from "../../shared/composables/useTopicRef";
-import { decodeEntitiesPayload } from "./payload";
+import { useCard } from "../../shared/composables/useCard";
+import { attachment, decodeEntitiesPayload } from "./payload";
 
 // autoFit must observe this renderer's own root (content-sized), not document.body —
 // in the dev preview workbench document.body is the whole page, so without a target
-// autoFit never converges and spams setHeight every frame.
+// autoFit never converges and spams height updates every frame.
 const rootEl = ref<HTMLElement | null>(null);
 
-const attachmentPayload = useTopicRef(clipbus.item.attachment);
+const { attachment: currentAttachment } = useCard(attachment);
 const payload = computed(() =>
-  decodeEntitiesPayload(attachmentPayload.value?.attachment?.payloadJson)
+  decodeEntitiesPayload(currentAttachment.value.payload)
 );
 
 const groups = computed(() => {
@@ -28,25 +28,18 @@ const groups = computed(() => {
 let unsub: (() => void) | null = null;
 let stopAutoFit: (() => void) | null = null;
 
-onMounted(async () => {
+onMounted(() => {
   stopAutoFit = autoFit({ min: 140, max: 420, target: rootEl.value ?? undefined });
 
-  try {
-    await clipbus.attachmentRenderer.setButtons({
-      buttons: [{ id: "copy-all", title: "Copy All" }],
-    });
-  } catch {
-    /* not in attachment renderer context */
-  }
 
-  unsub = clipbus.attachmentRenderer.onHostInvoke.on(async (d) => {
-    if (d?.buttonID === "copy-all" && payload.value) {
+  unsub = ctx.renderer.onButton(async (d) => {
+    if (d.id === "copy-all" && payload.value) {
       const allItems = [
         ...payload.value.urls,
         ...payload.value.emails,
         ...payload.value.ips,
       ];
-      await clipbus.clipboard.copyText({ text: allItems.join("\n") });
+      await ctx.system.copyText({ text: allItems.join("\n") });
     }
   });
 });

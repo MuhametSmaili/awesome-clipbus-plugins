@@ -2,15 +2,16 @@
 // Consumed by createPreviewWorkbench (preview-host/main.ts); `view` selects the
 // feature component to mount. Add one entry per attachment renderer feature.
 
+import manifest from "../../../manifest.json";
 import type { PreviewScenario } from "@clipbus/plugin-sdk/preview";
 
-const PLUGIN_ID = "plugin.formatter";
+const PLUGIN_ID = manifest.plugin.id;
 const ITEM_TAGS = ["formatter"];
 const SOURCE_APP = "com.preview.editor";
 
 // Richer sample: nested array + a string that needs quoting (contains ": ")
 // so the YAML view demonstrates both cases clearly.
-const jsonObjectPayload = JSON.stringify({
+const jsonObjectPayload = {
   kind: "json_formatter_preview",
   version: 1,
   originalLength: 99,
@@ -26,9 +27,9 @@ const jsonObjectPayload = JSON.stringify({
     headline: "JSON Object · 5 keys",
     subheadline: "99 → 133 chars",
   },
-});
+};
 
-const jsonArrayPayload = JSON.stringify({
+const jsonArrayPayload = {
   kind: "json_formatter_preview",
   version: 1,
   originalLength: 9,
@@ -43,12 +44,12 @@ const jsonArrayPayload = JSON.stringify({
     headline: "JSON Array · 3 items",
     subheadline: "9 → 16 chars",
   },
-});
+};
 
 // 3-column, 3-row sample; "note" column has a value that contains a comma
 // (the result of parsing a quoted field like `"handles, UX & motion"`) to
 // demonstrate that CSV quoting is preserved through the JSON export.
-const csvTablePayload = JSON.stringify({
+const csvTablePayload = {
   kind: "csv_table",
   version: 1,
   delimiter: ",",
@@ -69,9 +70,9 @@ const csvTablePayload = JSON.stringify({
       { label: "Delimiter", value: "comma" },
     ],
   },
-});
+};
 
-const xmlPayload = JSON.stringify({
+const xmlPayload = {
   kind: "xml_preview",
   version: 1,
   formatted:
@@ -79,44 +80,29 @@ const xmlPayload = JSON.stringify({
   elementCount: 10,
   attributeCount: 2,
   maxDepth: 3,
-});
+};
 
-/** Build an attachmentRenderer scenario; `view` routes to the feature component. */
+/** Build a V2 card scenario; view routes to the real feature component. */
 function renderer(opts: {
   id: string;
   label: string;
   view: string;
-  accentHex: string;
-  attachmentType: string;
-  payloadJson: string;
-  min: number;
-  max: number;
+  payload: object;
 }): PreviewScenario {
-  const item = {
-    id: `item-${opts.id}`,
-    type: "text",
-    tags: ITEM_TAGS,
-    sourceAppID: SOURCE_APP,
-  };
+  const declared = manifest.renderers.find((entry) => entry.id === opts.view)!;
+  const reference = { type: declared.attachmentType, key: "primary", updatedAt: 1, own: true };
   return {
     id: opts.id,
     label: opts.label,
-    mode: "attachmentRenderer",
-    pluginID: PLUGIN_ID,
-    accentHex: opts.accentHex,
     view: opts.view,
-    viewport: { heightPolicy: "bounded", min: opts.min, max: opts.max },
-    item,
-    attachment: {
-      item,
-      attachment: {
-        historyID: `preview-${opts.id}`,
-        owner: PLUGIN_ID,
-        attachmentType: opts.attachmentType,
-        attachmentKey: "primary",
-        payloadJson: opts.payloadJson,
-      },
+    plugin: { id: PLUGIN_ID, version: manifest.plugin.version },
+    item: {
+      id: 'item-' + opts.id, kind: "text", tags: ITEM_TAGS, sourceApp: SOURCE_APP,
+      pinned: false, createdAt: 1, lastCopiedAt: 1, attachments: [reference],
     },
+    attachment: { ...reference, payload: opts.payload },
+    renderer: { title: declared.title, tint: declared.tint, buttons: declared.buttons },
+    height: declared.height,
   };
 }
 
@@ -125,40 +111,24 @@ export const attachmentScenarios: PreviewScenario[] = [
     id: "json-renderer-object",
     label: "JSON Object",
     view: "json-renderer",
-    accentHex: "#7C3AED",
-    attachmentType: "plugin.formatter.json",
-    min: 160,
-    max: 480,
-    payloadJson: jsonObjectPayload,
+    payload: jsonObjectPayload,
   }),
   renderer({
     id: "json-renderer-array",
     label: "JSON Array",
     view: "json-renderer",
-    accentHex: "#7C3AED",
-    attachmentType: "plugin.formatter.json",
-    min: 160,
-    max: 480,
-    payloadJson: jsonArrayPayload,
+    payload: jsonArrayPayload,
   }),
   renderer({
     id: "xml-renderer-catalog",
     label: "XML: book catalog",
     view: "xml-renderer",
-    accentHex: "#7C3AED",
-    attachmentType: "plugin.formatter.xml",
-    min: 140,
-    max: 480,
-    payloadJson: xmlPayload,
+    payload: xmlPayload,
   }),
   renderer({
     id: "csv-table-basic",
     label: "CSV Table",
     view: "csv-table",
-    accentHex: "#0F766E",
-    attachmentType: "plugin.formatter.csv",
-    min: 160,
-    max: 460,
-    payloadJson: csvTablePayload,
+    payload: csvTablePayload,
   }),
 ];

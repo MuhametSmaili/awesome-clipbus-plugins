@@ -1,14 +1,8 @@
 import { definePlugin } from "@clipbus/plugin-sdk/runtime";
-import { createVibeDetector } from "./features/vibe-fallback/detector";
-import { createVibeRenderer } from "./features/vibe-fallback/renderer";
+import { vibeDetector } from "./features/vibe-fallback/detector";
 
 export default definePlugin({
-  setup() {
-    return {
-      detectors:           { "vibe-detector": createVibeDetector() },
-      attachmentRenderers: { "vibe-fallback":  createVibeRenderer() },
-      actions:             {},
-      messageHandlers:     {},
-    };
-  },
+  detectors: { "vibe-detector": vibeDetector },
+  actions: {},
+  messages: [],
 });

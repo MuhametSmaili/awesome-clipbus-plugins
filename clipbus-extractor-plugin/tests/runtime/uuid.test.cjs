@@ -8,15 +8,11 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, 'manifest.json'), 'utf8'));
 
-const sampleItem = {
-  id: 'item-1',
-  type: 'text',
-  tags: [],
-  sourceAppID: 'com.example.app',
-};
+const { fakeHost, itemSnapshot, setupPlugin, imageContent } = require('../support/plugin.cjs');
+const sampleItem = itemSnapshot('text');
 
 function makeInput(text) {
-  return { item: sampleItem, content: { kind: 'text', text }, attachments: [] };
+  return { item: sampleItem, content: { kind: 'text', text }, trigger: 'copy' };
 }
 
 // ---------------------------------------------------------------------------
@@ -29,22 +25,21 @@ test('manifest has uuid-detector', () => {
 });
 
 test('manifest has uuid-details renderer', () => {
-  const ids = manifest.attachmentRenderers.map((r) => r.id);
+  const ids = manifest.renderers.map((r) => r.id);
   assert.ok(ids.includes('uuid-details'), 'missing uuid-details renderer');
 });
 
-test('uuid-details uiEntry references renderers/ path', () => {
-  const renderer = manifest.attachmentRenderers.find((r) => r.id === 'uuid-details');
-  assert.ok(renderer.uiEntry.startsWith('renderers/'), `unexpected uiEntry: ${renderer.uiEntry}`);
+test('uuid-details page references dist/ui/renderers/ path', () => {
+  const renderer = manifest.renderers.find((r) => r.id === 'uuid-details');
+  assert.ok(renderer.page.startsWith('dist/ui/renderers/'), `unexpected page: ${renderer.page}`);
 });
 
-test('uuid-detector attachmentTypes contains plugin.extractor.uuid', () => {
-  const det = manifest.detectors.find((d) => d.id === 'uuid-detector');
-  assert.ok(det.attachmentTypes.includes('plugin.extractor.uuid'));
+test('manifest declares attachment type plugin.extractor.uuid', () => {
+  assert.ok(manifest.writes.attachmentTypes.includes('plugin.extractor.uuid'));
 });
 
 test('uuid-details renderer attachmentType is plugin.extractor.uuid', () => {
-  const r = manifest.attachmentRenderers.find((r) => r.id === 'uuid-details');
+  const r = manifest.renderers.find((r) => r.id === 'uuid-details');
   assert.equal(r.attachmentType, 'plugin.extractor.uuid');
 });
 
@@ -52,74 +47,81 @@ test('uuid-details renderer attachmentType is plugin.extractor.uuid', () => {
 // Factory methods
 // ---------------------------------------------------------------------------
 
-test('createUuidDetector returns a handler with detect method', () => {
+test('createUuidDetector returns a detector function', () => {
   const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
   const handler = createUuidDetector();
-  assert.equal(typeof handler.detect, 'function');
+  assert.equal(typeof handler, 'function');
 });
 
-test('createUuidRenderer returns a handler with resolveAttachment method', () => {
-  const { createUuidRenderer } = require(path.resolve(root, 'src/features/uuid-details/renderer.ts'));
-  const handler = createUuidRenderer();
-  assert.equal(typeof handler.resolveAttachment, 'function');
-});
 
 // ---------------------------------------------------------------------------
 // Detector: fires on valid UUIDs
 // ---------------------------------------------------------------------------
 
-test('detector fires on standard v4 UUID', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('550e8400-e29b-41d4-a716-446655440000'));
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].attachmentType, 'plugin.extractor.uuid');
+test('detector fires on standard v4 UUID', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('550e8400-e29b-41d4-a716-446655440000'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  assert.equal(attachments[0].type, 'plugin.extractor.uuid');
 });
 
-test('detector fires on braced uppercase v1 UUID', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
+test('detector fires on braced uppercase v1 UUID', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
   // Braced + uppercase v1 UUID; should normalise to lowercase canonical
-  const artifacts = await det.detect(makeInput('{6BA7B810-9DAD-11D1-80B4-00C04FD430C8}'));
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].attachmentType, 'plugin.extractor.uuid');
-  const p = JSON.parse(artifacts[0].payloadJson);
+  await det(makeInput('{6BA7B810-9DAD-11D1-80B4-00C04FD430C8}'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  assert.equal(attachments[0].type, 'plugin.extractor.uuid');
+  const p = attachments[0].entries[0].payload;
   assert.equal(p.canonical, '6ba7b810-9dad-11d1-80b4-00c04fd430c8');
 });
 
-test('detector fires on urn:uuid: prefixed UUID', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8'));
-  assert.equal(artifacts.length, 1);
-  const p = JSON.parse(artifacts[0].payloadJson);
+test('detector fires on urn:uuid: prefixed UUID', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  const p = attachments[0].entries[0].payload;
   assert.equal(p.canonical, '6ba7b810-9dad-11d1-80b4-00c04fd430c8');
 });
 
-test('detector fires on v7 UUID', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('01906a75-7d10-7ba8-8490-0000deadbeef'));
-  assert.equal(artifacts.length, 1);
-  const p = JSON.parse(artifacts[0].payloadJson);
+test('detector fires on v7 UUID', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('01906a75-7d10-7ba8-8490-0000deadbeef'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  const p = attachments[0].entries[0].payload;
   assert.equal(p.uuidVersion, 7);
 });
 
-test('detector fires on Nil UUID', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('00000000-0000-0000-0000-000000000000'));
-  assert.equal(artifacts.length, 1);
-  const p = JSON.parse(artifacts[0].payloadJson);
+test('detector fires on Nil UUID', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('00000000-0000-0000-0000-000000000000'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  const p = attachments[0].entries[0].payload;
   assert.equal(p.special, 'Nil UUID');
 });
 
-test('detector fires on Max UUID', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('ffffffff-ffff-ffff-ffff-ffffffffffff'));
-  assert.equal(artifacts.length, 1);
-  const p = JSON.parse(artifacts[0].payloadJson);
+test('detector fires on Max UUID', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('ffffffff-ffff-ffff-ffff-ffffffffffff'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 1);
+  const p = attachments[0].entries[0].payload;
   assert.equal(p.special, 'Max UUID');
 });
 
@@ -127,54 +129,64 @@ test('detector fires on Max UUID', async () => {
 // Detector: rejects invalid inputs
 // ---------------------------------------------------------------------------
 
-test('detector rejects plain text "hello"', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('hello'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects plain text "hello"', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('hello'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects bare 32-hex without hyphens', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('550e8400e29b41d4a716446655440000'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects bare 32-hex without hyphens', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('550e8400e29b41d4a716446655440000'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects short UUID (missing last group)', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('550e8400-e29b-41d4-a716'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects short UUID (missing last group)', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('550e8400-e29b-41d4-a716'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects prose containing a UUID', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect(makeInput('id is 550e8400-e29b-41d4-a716-446655440000 here'));
-  assert.equal(artifacts.length, 0);
+test('detector rejects prose containing a UUID', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det(makeInput('id is 550e8400-e29b-41d4-a716-446655440000 here'), host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
-test('detector rejects image content kind', async () => {
-  const { createUuidDetector } = require(path.resolve(root, 'src/features/uuid-details/detector.ts'));
-  const det = createUuidDetector();
-  const artifacts = await det.detect({
-    item: sampleItem,
-    content: { kind: 'image', dataBase64: '' },
-    attachments: [],
-  });
-  assert.equal(artifacts.length, 0);
+test('detector rejects image content kind', async t => {
+  const { registry, launch } = await setupPlugin(t);
+  const host = fakeHost(launch);
+  const det = registry.detectors['uuid-detector'];
+  await det({
+    item: itemSnapshot('image'),
+    content: imageContent,
+    trigger: 'copy',
+  }, host.ctx);
+  const attachments = host.paramsOf('item.setAttachments');
+  assert.equal(attachments.length, 0);
 });
 
 // ---------------------------------------------------------------------------
 // Payload: v4 version and variant
 // ---------------------------------------------------------------------------
 
-test('buildUuidArtifact: v4 UUID → version 4 "Random (v4)", variant "RFC 4122/9562"', () => {
-  const { buildUuidArtifact } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
-  const artifact = buildUuidArtifact(makeInput('550e8400-e29b-41d4-a716-446655440000'));
-  assert.ok(artifact, 'should produce artifact');
-  const p = JSON.parse(artifact.payloadJson);
+test('createUuidPayload: v4 UUID → version 4 "Random (v4)", variant "RFC 4122/9562"', () => {
+  const { createUuidPayload } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
+  const payload = createUuidPayload(makeInput('550e8400-e29b-41d4-a716-446655440000'));
+  assert.ok(payload, 'should produce payload');
+  const p = payload;
   assert.equal(p.uuidVersion, 4);
   assert.equal(p.versionLabel, 'Random (v4)');
   assert.equal(p.variant, 'RFC 4122/9562');
@@ -187,11 +199,11 @@ test('buildUuidArtifact: v4 UUID → version 4 "Random (v4)", variant "RFC 4122/
 // Payload: Nil UUID special label
 // ---------------------------------------------------------------------------
 
-test('buildUuidArtifact: Nil UUID → special "Nil UUID"', () => {
-  const { buildUuidArtifact } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
-  const artifact = buildUuidArtifact(makeInput('00000000-0000-0000-0000-000000000000'));
-  assert.ok(artifact);
-  const p = JSON.parse(artifact.payloadJson);
+test('createUuidPayload: Nil UUID → special "Nil UUID"', () => {
+  const { createUuidPayload } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
+  const payload = createUuidPayload(makeInput('00000000-0000-0000-0000-000000000000'));
+  assert.ok(payload);
+  const p = payload;
   assert.equal(p.special, 'Nil UUID');
 });
 
@@ -211,21 +223,21 @@ test('buildUuidArtifact: Nil UUID → special "Nil UUID"', () => {
 //   ISO = "1970-01-01T00:00:00.000Z"
 // ---------------------------------------------------------------------------
 
-test('buildUuidArtifact: v1 UUID at Gregorian-offset epoch → timestamp "1970-01-01T00:00:00.000Z"', () => {
-  const { buildUuidArtifact } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
-  const artifact = buildUuidArtifact(makeInput('13814000-1dd2-11b2-8000-000000000000'));
-  assert.ok(artifact);
-  const p = JSON.parse(artifact.payloadJson);
+test('createUuidPayload: v1 UUID at Gregorian-offset epoch → timestamp "1970-01-01T00:00:00.000Z"', () => {
+  const { createUuidPayload } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
+  const payload = createUuidPayload(makeInput('13814000-1dd2-11b2-8000-000000000000'));
+  assert.ok(payload);
+  const p = payload;
   assert.equal(p.uuidVersion, 1);
   assert.equal(p.timestamp, '1970-01-01T00:00:00.000Z');
 });
 
-test('buildUuidArtifact: v1 UUID has node field as MAC-style string', () => {
-  const { buildUuidArtifact } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
+test('createUuidPayload: v1 UUID has node field as MAC-style string', () => {
+  const { createUuidPayload } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
   // RFC 4122 DNS namespace UUID: node = 00:c0:4f:d4:30:c8
-  const artifact = buildUuidArtifact(makeInput('6ba7b810-9dad-11d1-80b4-00c04fd430c8'));
-  assert.ok(artifact);
-  const p = JSON.parse(artifact.payloadJson);
+  const payload = createUuidPayload(makeInput('6ba7b810-9dad-11d1-80b4-00c04fd430c8'));
+  assert.ok(payload);
+  const p = payload;
   assert.equal(p.uuidVersion, 1);
   assert.equal(p.node, '00:c0:4f:d4:30:c8');
 });
@@ -235,12 +247,12 @@ test('buildUuidArtifact: v1 UUID has node field as MAC-style string', () => {
 // The first 48 bits (group1 + group2 hex) are the Unix ms timestamp.
 // ---------------------------------------------------------------------------
 
-test('buildUuidArtifact: v7 UUID timestamp matches parseInt of first 12 hex digits', () => {
-  const { buildUuidArtifact } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
+test('createUuidPayload: v7 UUID timestamp matches parseInt of first 12 hex digits', () => {
+  const { createUuidPayload } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
   const uuidStr = '01906a75-7d10-7ba8-8490-0000deadbeef';
-  const artifact = buildUuidArtifact(makeInput(uuidStr));
-  assert.ok(artifact);
-  const p = JSON.parse(artifact.payloadJson);
+  const payload = createUuidPayload(makeInput(uuidStr));
+  assert.ok(payload);
+  const p = payload;
   assert.equal(p.uuidVersion, 7);
   // Derive expected ISO from the first 12 hex digits (48-bit Unix ms)
   const expectedMs = parseInt('01906a75' + '7d10', 16);
@@ -266,47 +278,9 @@ test('decodeUuidPayload returns null for bad payloads', () => {
   assert.equal(decodeUuidPayload('{"kind":"other"}'), null);
   assert.equal(decodeUuidPayload(null), null);
   assert.equal(decodeUuidPayload(undefined), null);
-});
-
-// ---------------------------------------------------------------------------
-// Renderer
-// ---------------------------------------------------------------------------
-
-test('renderer resolveAttachment returns shouldDisplay:false for bad payload', async () => {
-  const { createUuidRenderer } = require(path.resolve(root, 'src/features/uuid-details/renderer.ts'));
-  const renderer = createUuidRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '550e8400-e29b-41d4-a716-446655440000' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.extractor',
-      attachmentType: 'plugin.extractor.uuid',
-      attachmentKey: 'primary',
-      payloadJson: 'bad-json',
-    },
-  });
-  assert.equal(result.shouldDisplay, false);
-});
-
-test('renderer resolveAttachment returns displayName for valid payload', async () => {
-  const { createUuidRenderer } = require(path.resolve(root, 'src/features/uuid-details/renderer.ts'));
-  const { buildUuidArtifact } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
-  const artifact = buildUuidArtifact(makeInput('550e8400-e29b-41d4-a716-446655440000'));
-  const renderer = createUuidRenderer();
-  const result = await renderer.resolveAttachment({
-    item: sampleItem,
-    content: { kind: 'text', text: '550e8400-e29b-41d4-a716-446655440000' },
-    attachments: [],
-    attachment: {
-      historyID: 'h1',
-      owner: 'plugin.extractor',
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, 'displayName should be set');
-  assert.notEqual(result.shouldDisplay, false, 'valid payload should display');
+  const { createUuidPayload } = require(path.resolve(root, 'src/features/uuid-details/payload.ts'));
+  const payload = createUuidPayload({ content: { kind: 'text', text: '550e8400-e29b-41d4-a716-446655440000' } });
+  assert.ok(payload);
+  assert.deepEqual(decodeUuidPayload(payload), payload);
+  assert.deepEqual(decodeUuidPayload(JSON.stringify(payload)), payload);
 });

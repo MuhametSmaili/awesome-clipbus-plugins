@@ -6,9 +6,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "../..");
+const { attachment } = require(path.join(root, "src/features/xml-renderer/payload.ts"));
 const manifest = JSON.parse(fs.readFileSync(path.resolve(root, "manifest.json"), "utf8"));
 
-const sampleItem = { id: "item-1", type: "text", tags: [], sourceAppID: "com.example.app" };
+const sampleItem = { id: "item-1", kind: "text", tags: [], sourceApp: "com.example.app" };
 
 function textInput(text) {
   return { item: sampleItem, content: { kind: "text", text }, attachments: [] };
@@ -18,22 +19,22 @@ function textInput(text) {
 
 test("manifest declares xml-detector / xml-renderer", () => {
   assert.ok(manifest.detectors.map((d) => d.id).includes("xml-detector"));
-  assert.ok(manifest.attachmentRenderers.map((r) => r.id).includes("xml-renderer"));
+  assert.ok(manifest.renderers.map((r) => r.id).includes("xml-renderer"));
 });
 
-test("xml-renderer uiEntry references renderers/ path", () => {
-  const r = manifest.attachmentRenderers.find((x) => x.id === "xml-renderer");
-  assert.ok(r.uiEntry.startsWith("renderers/"), `unexpected uiEntry: ${r.uiEntry}`);
+test("xml-renderer page references renderers/ path", () => {
+  const r = manifest.renderers.find((x) => x.id === "xml-renderer");
+  assert.ok(r.page.startsWith("dist/ui/renderers/"), `unexpected page: ${r.page}`);
 });
 
 // ── Detector / payload ────────────────────────────────────────────────────────
 
 test("detect <a><b>1</b></a> → elementCount 2, formatted contains newline+indent", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  const artifact = buildXmlArtifact(textInput("<a><b>1</b></a>"));
-  assert.ok(artifact, "should detect XML");
-  assert.equal(artifact.attachmentType, "plugin.formatter.xml");
-  const p = JSON.parse(artifact.payloadJson);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  const payload = createXmlPayload(textInput("<a><b>1</b></a>"));
+  assert.ok(payload, "should detect XML");
+  assert.equal(attachment.type, "plugin.formatter.xml");
+  const p = payload;
   assert.equal(p.kind, "xml_preview");
   assert.equal(p.elementCount, 2);
   assert.ok(p.formatted.includes("\n"), "formatted should contain a newline");
@@ -41,10 +42,10 @@ test("detect <a><b>1</b></a> → elementCount 2, formatted contains newline+inde
 });
 
 test("detect <root attr=\"x\"><child/></root> → attributeCount ≥ 1", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  const artifact = buildXmlArtifact(textInput('<root attr="x"><child/></root>'));
-  assert.ok(artifact, "should detect XML");
-  const p = JSON.parse(artifact.payloadJson);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  const payload = createXmlPayload(textInput('<root attr="x"><child/></root>'));
+  assert.ok(payload, "should detect XML");
+  const p = payload;
   assert.ok(p.attributeCount >= 1, `expected attributeCount ≥ 1, got ${p.attributeCount}`);
 });
 
@@ -56,49 +57,48 @@ test("detect multi-attribute tag counts all attributes", () => {
 });
 
 test("detect XML with prolog declaration", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  const artifact = buildXmlArtifact(textInput('<?xml version="1.0"?><root><child/></root>'));
-  assert.ok(artifact, "should detect XML with prolog");
-  const p = JSON.parse(artifact.payloadJson);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  const payload = createXmlPayload(textInput('<?xml version="1.0"?><root><child/></root>'));
+  assert.ok(payload, "should detect XML with prolog");
+  const p = payload;
   assert.ok(p.formatted.includes("<?xml"), "formatted should include prolog");
 });
 
 test("detect XML with comment", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  const artifact = buildXmlArtifact(textInput("<!-- header --><root><item/></root>"));
-  assert.ok(artifact, "should detect XML with comment");
-  const p = JSON.parse(artifact.payloadJson);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  const payload = createXmlPayload(textInput("<!-- header --><root><item/></root>"));
+  assert.ok(payload, "should detect XML with comment");
+  const p = payload;
   assert.ok(p.formatted.includes("<!-- header -->"), "formatted should retain comment");
 });
 
 test("ignore plain text 'hello'", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  assert.equal(buildXmlArtifact(textInput("hello")), null);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  assert.equal(createXmlPayload(textInput("hello")), null);
 });
 
 test("ignore JSON {\"a\":1}", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  assert.equal(buildXmlArtifact(textInput('{"a":1}')), null);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  assert.equal(createXmlPayload(textInput('{"a":1}')), null);
 });
 
 test("ignore single bare < character", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  assert.equal(buildXmlArtifact(textInput("<")), null);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  assert.equal(createXmlPayload(textInput("<")), null);
 });
 
 test("ignore single self-closing tag with no partner", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  assert.equal(buildXmlArtifact(textInput("<br/>")), null);
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  assert.equal(createXmlPayload(textInput("<br/>")), null);
 });
 
 test("ignore image content kind", () => {
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  const artifact = buildXmlArtifact({
+  const { createXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  const payload = createXmlPayload({
     item: sampleItem,
     content: { kind: "image", width: 10, height: 10, format: "png", bytes: 0 },
-    attachments: [],
   });
-  assert.equal(artifact, null);
+  assert.equal(payload, null);
 });
 
 test("decodeXmlPayload returns null for bad JSON", () => {
@@ -109,42 +109,8 @@ test("decodeXmlPayload returns null for bad JSON", () => {
   assert.equal(decodeXmlPayload(undefined), null);
 });
 
-// ── Renderer ──────────────────────────────────────────────────────────────────
-
-test("renderer returns shouldDisplay:false for bad payload", async () => {
-  const { createXmlRenderer } = require(path.resolve(root, "src/features/xml-renderer/renderer.ts"));
-  const result = await createXmlRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "" },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.formatter",
-      attachmentType: "plugin.formatter.xml",
-      attachmentKey: "primary",
-      payloadJson: "not-valid-json",
-    },
-  });
-  assert.equal(result.shouldDisplay, false);
+test("decodeXmlPayload accepts a structured V2 attachment payload", () => {
+  const { createXmlPayload, decodeXmlPayload } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
+  const payload = createXmlPayload(textInput("<a><b>1</b></a>"));
+  assert.deepEqual(decodeXmlPayload(payload), payload);
 });
-
-test("renderer returns displayName for valid payload", async () => {
-  const { createXmlRenderer } = require(path.resolve(root, "src/features/xml-renderer/renderer.ts"));
-  const { buildXmlArtifact } = require(path.resolve(root, "src/features/xml-renderer/payload.ts"));
-  const artifact = buildXmlArtifact(textInput("<root><child/></root>"));
-  const result = await createXmlRenderer().resolveAttachment({
-    item: sampleItem,
-    content: { kind: "text", text: "<root><child/></root>" },
-    attachments: [],
-    attachment: {
-      historyID: "h1",
-      owner: "plugin.formatter",
-      attachmentType: artifact.attachmentType,
-      attachmentKey: artifact.attachmentKey,
-      payloadJson: artifact.payloadJson,
-    },
-  });
-  assert.ok(result.displayName, "should have a displayName");
-  assert.notEqual(result.shouldDisplay, false);
-});
-

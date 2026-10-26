@@ -1,9 +1,9 @@
 // payload.ts — UI-safe single source of truth for the Cron preview attachment.
 // NO `import … from "node:*"` here: this file is imported by app.vue (browser) too.
 
-import type { PluginDetectorArtifact } from "@clipbus/plugin-sdk/runtime";
+import { defineAttachment } from "@clipbus/plugin-sdk";
 
-const ATTACHMENT_TYPE = "plugin.cron.schedule";
+export const ATTACHMENT_TYPE = "plugin.cron.schedule";
 
 export interface CronField {
   name: string;
@@ -200,9 +200,9 @@ export function createCronPayload(input: unknown): CronPayload | null {
   };
 }
 
-export function decodeCronPayload(payloadJson: string | null | undefined): CronPayload | null {
+export function decodeCronPayload(value: unknown): CronPayload | null {
   try {
-    const parsed = JSON.parse(payloadJson ?? "{}") as { kind?: string };
+    const parsed = (typeof value === "string" ? JSON.parse(value) : value ?? {}) as { kind?: string };
     if (parsed.kind !== "cron_preview") return null;
     return parsed as CronPayload;
   } catch {
@@ -394,17 +394,4 @@ export function computeNextRuns(
   return results;
 }
 
-export function buildCronArtifact(input: unknown): PluginDetectorArtifact | null {
-  const payload = createCronPayload(input);
-  if (!payload) return null;
-  return {
-    attachmentType: ATTACHMENT_TYPE,
-    attachmentKey:  "primary",
-    payloadJson:    JSON.stringify(payload),
-    searchProjection: {
-      scope:      "cron",
-      searchText: `${payload.expression} ${payload.summary}`,
-      label:      "Cron",
-    },
-  };
-}
+export const attachment = defineAttachment<CronPayload>(ATTACHMENT_TYPE);

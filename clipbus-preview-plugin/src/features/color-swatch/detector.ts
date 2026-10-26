@@ -1,15 +1,15 @@
-import type {
-  PluginDetectorHandler,
-  PluginDetectorInput,
-  PluginDetectorArtifact,
-} from "@clipbus/plugin-sdk/runtime";
-import { buildColorArtifact } from "./payload.ts";
+import { PLUGIN_WRITE_LIMITS, type DetectorHandler } from "@clipbus/plugin-sdk/runtime";
+import { attachment, createColorPayload } from "./payload.ts";
 
-export function createColorDetector(): PluginDetectorHandler {
-  return {
-    async detect(input: PluginDetectorInput): Promise<PluginDetectorArtifact[]> {
-      const artifact = buildColorArtifact(input);
-      return artifact ? [artifact] : [];
-    },
+export function createColorDetector(): DetectorHandler {
+  return async (input, ctx) => {
+    const payload = createColorPayload(input);
+    if (payload === null) return;
+    if (Buffer.byteLength(JSON.stringify(payload)) > PLUGIN_WRITE_LIMITS.maximumPayloadBytes) return;
+    await attachment.set(ctx, [{ key: "primary", payload, card: { tint: payload.hex } }]);
+    await ctx.item.setSearchExtension({
+      scope: "color",
+      entries: [{ key: "primary", text: payload.hex, label: "Color" }],
+    });
   };
 }

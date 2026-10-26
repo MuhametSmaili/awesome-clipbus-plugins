@@ -21,7 +21,7 @@
 | 4 | 能力组合 | **按需覆盖**，不强行铺满。**要展示的附件必配 renderer**（detector 只写搜索扩展、不展示卡片时无需 renderer）；**auto-run action 仅当能提供 renderer 给不了的东西时才加**（renderer 已展示+一键复制某值时，禁止再加返回同值的冗余 copy-action）。 |
 | 5 | 验证门槛 | **`npm run verify` 全绿**（typecheck+lint+build+verify-build + 精简冒烟测试）。模板里写死 id 的机关与测试改写成匹配新插件。 |
 | 6 | skill 结构 | **工作流 + 精简脚本 + 通用脚手架**（方案 A）。 |
-| 7 | 落地位置 | 项目内 `.agents/skills/clipbus-plugin-generator/`，随仓库版本化；客户端目录仅作链接。 |
+| 7 | 落地位置 | 项目内 `.agents/skills/clipbus-plugin-generator/`，随仓库版本化，并与 `.claude/skills/`、`.codex/skills/` 的副本同步。 |
 | 8 | 预览工作台 | **保留**（支持 `npm run dev` 看 UI，服务视觉优先级），每个 feature 自带一个 preview scenario。 |
 
 ## Skill 文件结构

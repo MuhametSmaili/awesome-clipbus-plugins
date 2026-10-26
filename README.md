@@ -28,16 +28,12 @@ Clipbus's free tier includes 3 slots per capability type (detector / renderer / 
 ## Build and maintain plugins with AI
 
 1. Clone this repository.
-2. Run `node .agents/scripts/link-skills.mjs` from the repository root.
-3. Open the repository with your preferred AI coding agent.
-4. Describe the plugin or maintenance task you want to complete.
+2. Open it with your preferred AI coding agent.
+3. Describe the plugin or maintenance task you want to complete.
 
-`.agents/skills/` is the single source of truth. The setup command creates local
-`.claude/skills` and `.codex/skills` directory links to it: relative symlinks on
-macOS and junctions on Windows. These aliases are Git-ignored; no skill files are
-copied. Run setup again after moving the repository. Existing real client skill
-directories must be moved into `.agents/skills/` before setup will replace them.
-The link tests run on macOS and Windows in CI.
+The repository includes identical skill files in `.agents/skills/`, `.codex/skills/`,
+and `.claude/skills/`. They work directly after cloning on Windows and macOS.
+Keep all three copies updated together; CI checks that their contents match.
 
 Two repository skills under `.agents/skills/` provide purpose-built workflows:
 

@@ -1,4 +1,4 @@
-name: Skill directory links
+name: Skill copies
 
 on:
   push:
@@ -6,26 +6,23 @@ on:
       - .agents/**
       - .claude/skills/**
       - .codex/skills/**
-      - .gitignore
-      - .github/workflows/skill-links.yml
+      - .github/workflows/skill-copies.yml
   pull_request:
     paths:
       - .agents/**
       - .claude/skills/**
       - .codex/skills/**
-      - .gitignore
-      - .github/workflows/skill-links.yml
+      - .github/workflows/skill-copies.yml
 
 permissions:
   contents: read
 
 jobs:
-  links:
+  copies:
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - run: node .agents/scripts/link-skills.mjs
-      - run: node --test .agents/scripts/link-skills.test.mjs
+      - run: node .agents/scripts/check-skills.mjs

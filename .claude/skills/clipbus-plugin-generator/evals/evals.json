@@ -1,0 +1,54 @@
+{
+  "skill_name": "clipbus-plugin-generator",
+  "notes": "测试 prompt 都选能跑到完成的形态（给定选题或全自主），避开需要人工选择的默认提案模式——eval 子代理没有人可应答 AskUserQuestion。每个 with-skill 运行应产出一个 npm run verify 全绿的 clipbus-*-plugin 并更新根 README.md。断言由 evals/grade.mjs 客观核验（npm run verify 的绿/红由真实运行捕获）。",
+  "evals": [
+    {
+      "id": 1,
+      "name": "given-topic-base64-decoder",
+      "prompt": "在这个 clipbus 插件合集仓库里，帮我做一个能识别剪贴板里的 base64 字符串、把它解码出来展示并支持一键复制解码结果的插件。",
+      "expected_output": "按 survey 归属扩展或新建 clipbus-decoder-plugin（plugin.id=plugin.decoder），含 base64 的 detector+renderer 与复制按钮；npm run verify 全绿；README 写明功能；根 README.md 收录。",
+      "files": [],
+      "assertions": [
+        "目录 clipbus-decoder-plugin 在仓库根被创建",
+        "manifest.plugin.id === plugin.decoder",
+        "至少 1 个 detector 且至少 1 个 renderer（detector 必配 renderer）",
+        "manifest detector/Action id 在 Runtime 注册；renderer page 正确",
+        "每个 UI 能力（renderer）都有同名 src/features/<id> 目录含 main.ts+index.html",
+        "npm run verify 退出码为 0（全绿）",
+        "README.md 写明功能且提到 base64",
+        "根 README.md 存在并收录该插件（含链接）",
+        "解码逻辑正确：对 'aGVsbG8=' 之类已知 base64 能得到 'hello'"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "autonomous-pick-and-generate",
+      "prompt": "自动挑一个实用的选题，直接在这个仓库生成一个新的剪贴板插件，不用问我，完成后告诉我做了什么。",
+      "expected_output": "全自主模式：自选一个未被占用、实用的选题，生成 clipbus-{topic}-plugin，npm run verify 全绿，更新 README 与根 README.md，最后汇报。",
+      "files": [],
+      "assertions": [
+        "在仓库根新建了一个 clipbus-{topic}-plugin 目录（topic 未与已有冲突）",
+        "manifest.plugin.id 形如 plugin.{topic}",
+        "按选题需要实现了扩展点；要展示附件则有 renderer",
+        "manifest detector/Action id 在 Runtime 注册；renderer page 正确",
+        "npm run verify 退出码为 0（全绿）",
+        "README.md 写明功能；根 README.md 收录该插件"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "given-topic-json-formatter",
+      "prompt": "给这个合集加一个剪贴板插件：识别剪贴板里的 JSON 文本，美化格式化后展示，并能一键复制格式化结果。",
+      "expected_output": "按 survey 归属扩展或新建 clipbus-formatter-plugin（plugin.id=plugin.formatter），含 JSON 的 detector+renderer 与复制按钮；npm run verify 全绿；README + 根 README.md 更新。",
+      "files": [],
+      "assertions": [
+        "目录 clipbus-formatter-plugin 在仓库根被创建",
+        "manifest.plugin.id === plugin.formatter",
+        "至少 1 个 detector 且至少 1 个 renderer",
+        "manifest detector/Action id 在 Runtime 注册；renderer page 正确",
+        "npm run verify 退出码为 0（全绿）",
+        "README.md 写明功能；根 README.md 收录该插件"
+      ]
+    }
+  ]
+}

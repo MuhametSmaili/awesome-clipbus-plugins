@@ -60,11 +60,9 @@ Windows / macOS 新 clone 后即可直接使用，无需额外初始化。修改
 
 在这个合集之外维护自己的 Clipbus 插件？欢迎在这里收录。
 
-_目前还没有社区插件——欢迎成为第一个。_
-
 | 插件 | 描述 | 仓库 | 安装子目录 |
 |------|------|------|-----------|
-| _(你的插件)_ | _一句话描述_ | `https://github.com/<you>/<repo>` | 除非你的仓库包含多个插件，否则留空 |
+| [Copy Sound](https://github.com/MuhametSmaili/clipbus-plugins/tree/main/sound-plugin) | 为 macOS 提供轻柔的复制提示音，支持自定义音频文件和音量。 | `https://github.com/MuhametSmaili/clipbus-plugins` | `sound-plugin` |
 
 添加一行，提交一个 PR 即可——见下方**贡献**。
 
